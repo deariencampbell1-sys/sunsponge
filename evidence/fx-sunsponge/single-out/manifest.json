@@ -1,0 +1,121 @@
+{
+  "captured_at": "2026-06-24T18:57:24+00:00",
+  "discovery": {
+    "mode": "manual",
+    "page_count": 1
+  },
+  "job_id": "7bd50695a728",
+  "results": [
+    {
+      "attempts": 1,
+      "bytes": 20260,
+      "elapsed_ms": 1784,
+      "file": "001-example-com-desktop-light.png",
+      "height": 1000,
+      "pathway_id": null,
+      "pathway_status": null,
+      "scheme": "light",
+      "state_id": "desktop-light",
+      "status": "ok",
+      "url": "https://example.com/",
+      "viewport": "desktop",
+      "width": 1440
+    },
+    {
+      "attempts": 1,
+      "bytes": 20260,
+      "elapsed_ms": 1699,
+      "file": "001-example-com-desktop-dark.png",
+      "height": 1000,
+      "pathway_id": null,
+      "pathway_status": null,
+      "scheme": "dark",
+      "state_id": "desktop-dark",
+      "status": "ok",
+      "url": "https://example.com/",
+      "viewport": "desktop",
+      "width": 1440
+    },
+    {
+      "attempts": 1,
+      "bytes": 20596,
+      "elapsed_ms": 1681,
+      "file": "001-example-com-tablet-light.png",
+      "height": 1112,
+      "pathway_id": null,
+      "pathway_status": null,
+      "scheme": "light",
+      "state_id": "tablet-light",
+      "status": "ok",
+      "url": "https://example.com/",
+      "viewport": "tablet",
+      "width": 834
+    },
+    {
+      "attempts": 1,
+      "bytes": 20596,
+      "elapsed_ms": 1275,
+      "file": "001-example-com-tablet-dark.png",
+      "height": 1112,
+      "pathway_id": null,
+      "pathway_status": null,
+      "scheme": "dark",
+      "state_id": "tablet-dark",
+      "status": "ok",
+      "url": "https://example.com/",
+      "viewport": "tablet",
+      "width": 834
+    },
+    {
+      "attempts": 1,
+      "bytes": 17224,
+      "elapsed_ms": 1279,
+      "file": "001-example-com-mobile-light.png",
+      "height": 844,
+      "pathway_id": null,
+      "pathway_status": null,
+      "scheme": "light",
+      "state_id": "mobile-light",
+      "status": "ok",
+      "url": "https://example.com/",
+      "viewport": "mobile",
+      "width": 390
+    },
+    {
+      "attempts": 1,
+      "bytes": 17224,
+      "elapsed_ms": 1281,
+      "file": "001-example-com-mobile-dark.png",
+      "height": 844,
+      "pathway_id": null,
+      "pathway_status": null,
+      "scheme": "dark",
+      "state_id": "mobile-dark",
+      "status": "ok",
+      "url": "https://example.com/",
+      "viewport": "mobile",
+      "width": 390
+    }
+  ],
+  "settings": {
+    "capture_count": 6,
+    "concurrency": 3,
+    "crawl": false,
+    "discovery": {
+      "mode": "manual",
+      "page_count": 1
+    },
+    "format": "png",
+    "full_page": true,
+    "jpeg_quality": 88,
+    "local": false,
+    "page_count": 1,
+    "retries": 1,
+    "retry_timeout_ms": 60000,
+    "timeout_ms": 30000,
+    "wait_ms": 600
+  },
+  "urls": [
+    "https://example.com/"
+  ]
+}
