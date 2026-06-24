@@ -1,0 +1,46 @@
+=== pt-sunsponge pressure test summary ===
+
+Boot:
+  /api/health -> {"status":"ok","service":"sunsponge"}
+  /            -> UI served (1311 bytes)
+  /RestedCaptureView.jsx, /sunsponge.css, /api.js -> 200
+
+Single capture (job_id from single-job.json):
+   completed=4/4 failed=0  status= done
+  -> 4 PNGs named 001-example-com-{desktop|mobile}-{light|dark}.png
+
+Map ingestion (pt-sunspressure-manifest.md, 3 pathways):
+   completed=12/12 failed=0  status= done
+  -> 12 PNGs named NNN-{pathway-id}-{status}-{viewport}-{scheme}.png
+
+Large map (pt-sunspressure-large.json, 40 pathways):
+   completed=160/160 failed=0  status= done
+  -> 160 PNGs, all OK
+
+Bad URL (host not resolvable):
+   completed=1/1 failed=1  status= done_with_errors
+
+Multi-job (3 concurrent, 1 url each):
+  job1: completed=1/1 failed=0  status= done
+  job2: completed=1/1 failed=0  status= done
+  job3: completed=1/1 failed=0  status= done
+
+Edge payloads:
+  empty URL                HTTP=400
+  not-a-url                HTTP=200
+  bad map_path             HTTP=500
+  bad manifest_path        HTTP=500
+  unknown job_id           HTTP=404
+  download-while-running   HTTP=409
+
+Sample artifacts in evidence/pt-sunsponge/samples/ :
+  001-example-com-desktop-dark.png  20260B
+  001-example-com-desktop-light.png  20260B
+  001-example-com-mobile-dark.png  17224B
+  001-example-com-mobile-light.png  17224B
+  001-home-light-wired-desktop-light.png  20260B
+  001-home-light-wired-mobile-dark.png  17224B
+  001-pt-large-000-unwired-desktop-light.png  20260B
+  002-about-page-wired-desktop-light.png  20260B
+  003-missing-route-unwired-desktop-light.png  20260B
+  020-pt-large-019-unwired-mobile-dark.png  17224B

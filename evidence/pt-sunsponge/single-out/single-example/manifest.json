@@ -1,0 +1,83 @@
+{
+  "captured_at": "2026-06-24T18:11:04+00:00",
+  "discovery": {
+    "mode": "manual",
+    "page_count": 1
+  },
+  "job_id": "ffbf473f0cec",
+  "results": [
+    {
+      "attempts": 1,
+      "bytes": 20260,
+      "elapsed_ms": 958,
+      "file": "001-example-com-desktop-light.png",
+      "height": 1000,
+      "scheme": "light",
+      "state_id": "desktop-light",
+      "status": "ok",
+      "url": "https://example.com/",
+      "viewport": "desktop",
+      "width": 1440
+    },
+    {
+      "attempts": 1,
+      "bytes": 20260,
+      "elapsed_ms": 979,
+      "file": "001-example-com-desktop-dark.png",
+      "height": 1000,
+      "scheme": "dark",
+      "state_id": "desktop-dark",
+      "status": "ok",
+      "url": "https://example.com/",
+      "viewport": "desktop",
+      "width": 1440
+    },
+    {
+      "attempts": 1,
+      "bytes": 17224,
+      "elapsed_ms": 938,
+      "file": "001-example-com-mobile-light.png",
+      "height": 844,
+      "scheme": "light",
+      "state_id": "mobile-light",
+      "status": "ok",
+      "url": "https://example.com/",
+      "viewport": "mobile",
+      "width": 390
+    },
+    {
+      "attempts": 1,
+      "bytes": 17224,
+      "elapsed_ms": 923,
+      "file": "001-example-com-mobile-dark.png",
+      "height": 844,
+      "scheme": "dark",
+      "state_id": "mobile-dark",
+      "status": "ok",
+      "url": "https://example.com/",
+      "viewport": "mobile",
+      "width": 390
+    }
+  ],
+  "settings": {
+    "capture_count": 4,
+    "concurrency": 2,
+    "crawl": false,
+    "discovery": {
+      "mode": "manual",
+      "page_count": 1
+    },
+    "format": "png",
+    "full_page": false,
+    "jpeg_quality": 88,
+    "local": false,
+    "page_count": 1,
+    "retries": 1,
+    "retry_timeout_ms": 60000,
+    "timeout_ms": 20000,
+    "wait_ms": 300
+  },
+  "urls": [
+    "https://example.com/"
+  ]
+}

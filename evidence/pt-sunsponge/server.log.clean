@@ -1,0 +1,84 @@
+INFO:     Started server process [2208626]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8787 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55028 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55036 - "POST /api/rested-captures/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55048 - "GET /api/rested-captures/jobs/41e49fc7ffbd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59510 - "GET /api/rested-captures/jobs/41e49fc7ffbd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59526 - "GET /api/rested-captures/jobs/41e49fc7ffbd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36584 - "GET /api/rested-captures/jobs/41e49fc7ffbd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36586 - "GET /api/rested-captures/jobs/41e49fc7ffbd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55942 - "GET /api/rested-captures/jobs/41e49fc7ffbd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55954 - "GET /api/rested-captures/jobs/41e49fc7ffbd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55964 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51102 - "POST /api/rested-captures/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51112 - "POST /api/rested-captures/jobs HTTP/1.1" 400 Bad Request
+POST /api/rested-captures/jobs failed
+  [traceback elided — see 500-traceback-map-path.txt and 500-traceback-manifest-path.txt]
+INFO:     127.0.0.1:51114 - "POST /api/rested-captures/jobs HTTP/1.1" 500 Internal Server Error
+POST /api/rested-captures/jobs failed
+  [traceback elided — see 500-traceback-map-path.txt and 500-traceback-manifest-path.txt]
+INFO:     127.0.0.1:51130 - "POST /api/rested-captures/jobs HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:51142 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51148 - "GET /api/rested-captures/jobs/ad7b6b0f2de9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51154 - "GET /api/rested-captures/jobs/ad7b6b0f2de9 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54930 - "POST /api/rested-captures/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54946 - "GET /api/rested-captures/jobs/36c3a1c4d3b0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54954 - "GET /api/rested-captures/jobs/36c3a1c4d3b0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51634 - "GET /api/rested-captures/jobs/36c3a1c4d3b0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51642 - "POST /api/rested-captures/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51652 - "GET /api/rested-captures/jobs/43b504e01a62 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51666 - "GET /api/rested-captures/jobs/43b504e01a62 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51680 - "GET /api/rested-captures/jobs/43b504e01a62 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51684 - "GET /api/rested-captures/jobs/43b504e01a62 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51686 - "POST /api/rested-captures/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51702 - "GET /api/rested-captures/jobs/1aa582801710 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51718 - "GET /api/rested-captures/jobs/1aa582801710 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54400 - "GET /api/rested-captures/jobs/1aa582801710 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54408 - "GET /api/rested-captures/jobs/1aa582801710 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54416 - "GET /api/rested-captures/jobs/1aa582801710 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57308 - "GET /api/rested-captures/jobs/1aa582801710 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57316 - "GET /api/rested-captures/jobs/1aa582801710 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57326 - "GET /api/rested-captures/jobs/1aa582801710 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44312 - "GET /api/rested-captures/jobs/1aa582801710 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44316 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44324 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44332 - "GET /assets/rhobear-logo.png HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:44336 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44338 - "GET /api/rested-captures/jobs/1aa582801710 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44350 - "GET /sunsponge.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44360 - "GET /RestedCaptureView.jsx HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44376 - "GET /assets/rhobear-logo.png HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:44392 - "GET /assets/rhobear-logo.png HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:44406 - "GET /api/rested-captures/jobs/1aa582801710 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44412 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48264 - "GET /api/rested-captures/jobs/36c3a1c4d3b0 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48268 - "GET /api/rested-captures/jobs/43b504e01a62 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48282 - "GET /api/rested-captures/jobs/1aa582801710 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48288 - "GET /api/rested-captures/jobs/b15611f0b2ab HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:48300 - "GET /api/rested-captures/jobs/a54881b0e08e HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:48308 - "GET /api/rested-captures/jobs/c0a3b8d4256e HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:48324 - "GET /api/rested-captures/jobs/12cff81be82f HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:43736 - "GET /api/rested-captures/jobs/36c3a1c4d3b0/download HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43748 - "GET /api/rested-captures/jobs/nonexistent HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:43750 - "POST /api/rested-captures/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43760 - "GET /api/rested-captures/jobs/a181cce7be12/download HTTP/1.1" 409 Conflict
+INFO:     127.0.0.1:35678 - "POST /api/rested-captures/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35688 - "GET /api/rested-captures/jobs/e3b9771213b4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55720 - "GET /api/rested-captures/jobs/e3b9771213b4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55734 - "GET /api/rested-captures/jobs/e3b9771213b4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55748 - "POST /api/rested-captures/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55754 - "GET /api/rested-captures/jobs/2cb25d687016 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55762 - "GET /api/rested-captures/jobs/2cb25d687016 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55766 - "GET /api/rested-captures/jobs/2cb25d687016 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55768 - "POST /api/rested-captures/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55784 - "GET /api/rested-captures/jobs/0d46bef5a6c5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55796 - "GET /api/rested-captures/jobs/0d46bef5a6c5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55798 - "GET /api/rested-captures/jobs/0d46bef5a6c5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55814 - "POST /api/rested-captures/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55820 - "GET /api/rested-captures/jobs/35ce0e137f71 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55832 - "GET /api/rested-captures/jobs/35ce0e137f71 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55838 - "GET /api/rested-captures/jobs/35ce0e137f71 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55840 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38286 - "GET /api/rested-captures/jobs/36c3a1c4d3b0/download HTTP/1.1" 200 OK
