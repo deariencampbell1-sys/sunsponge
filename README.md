@@ -43,6 +43,34 @@ API endpoints:
 - `GET /api/rested-captures/jobs/{job_id}` — poll job status
 - `GET /api/rested-captures/jobs/{job_id}/download` — download ZIP
 
+## Feed it a map
+
+SunSponge can skip blind crawling when you already have a pathway map. It accepts the same shapes as [rhobear-verifier](https://github.com/deariencampbell1-sys/rhobear-verifier):
+
+**Markdown manifest** (`pathway-manifest.md`) — tables of pathways (id, location, trigger, status) and routes.
+
+```bash
+set PYTHONPATH=src
+python scripts/demo_map_plan.py --manifest C:\path\to\docs\pathway-manifest.md --base-url https://example.com
+```
+
+**Verifier JSON** (`verifier-report.json`) — `{ version, repo, manifest_summary, summary, checks{<name>:{findings[]}} }`.
+
+```bash
+set PYTHONPATH=src
+python scripts/demo_map_plan.py --map C:\path\to\verifier-report.json --base-url https://example.com
+```
+
+Each pathway expands to one capture target per viewport/scheme. Output files are named by pathway id and status (e.g. `001-capture-start-wired-desktop-light.png`).
+
+API fields (same semantics):
+
+- `manifest_path` — path to `.md` on the server
+- `map_path` — path to verifier `.json` on the server
+- `base_url` — page origin for resolving SPA views from pathway locations
+
+Crawl and XML sitemap modes still work when no map is provided.
+
 ## Capture a site (CLI smoke)
 
 Captures two pages from example.com into `./out`:

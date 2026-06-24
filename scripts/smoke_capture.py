@@ -16,15 +16,20 @@ from sunsponge.capture_service import build_capture_plan, run_capture  # noqa: E
 
 
 def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Capture pages to ./out")
+    parser.add_argument("--manifest", help="Path to pathway-manifest.md")
+    parser.add_argument("--map", help="Path to verifier JSON output")
+    parser.add_argument("--base-url", default="", help="Base URL when using --manifest or --map")
+    args, _unknown = parser.parse_known_args()
     out_dir = ROOT / "out"
     shots_dir = out_dir / "shots"
     if out_dir.exists():
         shutil.rmtree(out_dir)
     shots_dir.mkdir(parents=True, exist_ok=True)
 
-    urls = ["https://example.com/", "https://example.com/about"]
-    _, targets, settings = build_capture_plan({
-        "urls": urls,
+    plan_payload: dict = {
         "viewports": ["desktop"],
         "schemes": ["light"],
         "format": "png",
@@ -32,7 +37,17 @@ def main() -> int:
         "concurrency": 1,
         "wait_ms": 400,
         "timeout_ms": 30000,
-    })
+    }
+    if args.manifest or args.map:
+        if args.manifest:
+            plan_payload["manifest_path"] = args.manifest
+        if args.map:
+            plan_payload["map_path"] = args.map
+        plan_payload["base_url"] = args.base_url or "https://example.com"
+    else:
+        plan_payload["urls"] = ["https://example.com/", "https://example.com/about"]
+
+    _, targets, settings = build_capture_plan(plan_payload)
 
     results = run_capture(targets, settings, shots_dir, lambda _result: None)
     ok = [item for item in results if item.get("status") == "ok"]

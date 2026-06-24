@@ -134,9 +134,16 @@ class CaptureTarget:
     width: int
     height: int
     scheme: str
+    pathway_id: str = ""
+    pathway_status: str = ""
+    pathway_trigger: str = ""
 
     @property
     def state_id(self) -> str:
+        if self.pathway_id:
+            status = _slug(self.pathway_status or "UNKNOWN", "unknown")
+            pid = _slug(self.pathway_id, "pathway")
+            return f"{pid}-{status}-{self.viewport_id}-{self.scheme}"
         return f"{self.viewport_id}-{self.scheme}"
 
 
@@ -789,15 +796,104 @@ def build_capture_plan(payload: dict[str, Any]) -> tuple[list[str], list[Capture
     if not isinstance(raw_urls, list):
         raise RestedCaptureError("urls must be a list or newline text")
 
+    manifest_path = str(payload.get("manifest_path") or payload.get("manifest") or "").strip()
+    map_path = str(payload.get("map_path") or payload.get("map") or "").strip()
+    map_enabled = bool(manifest_path or map_path)
+
     urls = [str(item).strip() for item in raw_urls if str(item).strip()]
     sitemap_url = str(payload.get("sitemap_url") or "").strip()
     crawl_url = str(payload.get("crawl_url") or "").strip()
     local_path = str(payload.get("local_path") or "").strip()
-    crawl_enabled = bool(payload.get("crawl") or crawl_url)
-    local_enabled = bool(payload.get("local") or local_path)
+    crawl_enabled = bool(payload.get("crawl") or crawl_url) and not map_enabled
+    local_enabled = bool(payload.get("local") or local_path) and not map_enabled
     discovery: dict[str, Any] = {"mode": "manual", "page_count": 0}
-    if crawl_url:
+    if crawl_url and not map_enabled:
         urls.append(crawl_url)
+
+    viewport_ids = payload.get("viewports") or list(DEFAULT_VIEWPORTS)
+    if not isinstance(viewport_ids, list):
+        raise RestedCaptureError("viewports must be a list")
+    viewport_ids = [str(v).strip().lower() for v in viewport_ids if str(v).strip()]
+    if not viewport_ids:
+        raise RestedCaptureError("choose at least one viewport")
+
+    schemes = payload.get("schemes") or list(DEFAULT_SCHEMES)
+    if isinstance(schemes, str):
+        schemes = [schemes]
+    if not isinstance(schemes, list):
+        raise RestedCaptureError("schemes must be a list")
+    schemes = [str(s).strip().lower() for s in schemes if str(s).strip()]
+    if not schemes:
+        raise RestedCaptureError("choose at least one color scheme")
+
+    if map_enabled:
+        from sunsponge.pathway_map import load_pathway_map, plan_targets_from_map
+
+        pathway_map = load_pathway_map(
+            manifest_path=manifest_path or None,
+            map_path=map_path or None,
+        )
+        base_url = str(payload.get("base_url") or crawl_url or (urls[0] if urls else "")).strip()
+        urls, descriptors = plan_targets_from_map(
+            pathway_map,
+            base_url=base_url,
+            viewports=viewport_ids,
+            schemes=schemes,
+        )
+        discovery = {
+            "mode": "map",
+            "source": "manifest" if manifest_path else "verifier-json",
+            "pathway_count": len(pathway_map.get("pathways") or []),
+            "route_count": len(pathway_map.get("routes") or []),
+            "page_count": len(urls),
+            "target_count": len(descriptors),
+            "base_url": base_url,
+            "manifest_hash": pathway_map.get("hash"),
+        }
+        targets: list[CaptureTarget] = []
+        for desc in descriptors:
+            viewport = DEFAULT_VIEWPORTS.get(desc["viewport_id"])
+            if not viewport:
+                raise RestedCaptureError(f"unknown viewport: {desc['viewport_id']}")
+            if desc["scheme"] not in {"light", "dark", "no-preference"}:
+                raise RestedCaptureError(f"unknown color scheme: {desc['scheme']}")
+            targets.append(
+                CaptureTarget(
+                    index=int(desc["index"]),
+                    url=desc["url"],
+                    viewport_id=desc["viewport_id"],
+                    width=int(viewport["width"]),
+                    height=int(viewport["height"]),
+                    scheme=desc["scheme"],
+                    pathway_id=desc["pathway_id"],
+                    pathway_status=desc["pathway_status"],
+                    pathway_trigger=desc["pathway_trigger"],
+                )
+            )
+        settings = {
+            "format": str(payload.get("format") or "png").lower(),
+            "full_page": bool(payload.get("full_page", True)),
+            "timeout_ms": int(payload.get("timeout_ms") or DEFAULT_TIMEOUT_MS),
+            "wait_ms": int(payload.get("wait_ms") or DEFAULT_WAIT_MS),
+            "concurrency": max(1, min(8, int(payload.get("concurrency") or DEFAULT_CONCURRENCY))),
+            "retries": max(0, min(3, int(payload.get("retries", DEFAULT_RETRIES)))),
+            "retry_timeout_ms": max(
+                int(payload.get("timeout_ms") or DEFAULT_TIMEOUT_MS),
+                int(payload.get("retry_timeout_ms") or DEFAULT_RETRY_TIMEOUT_MS),
+            ),
+            "jpeg_quality": max(40, min(100, int(payload.get("jpeg_quality") or 88))),
+            "capture_count": len(targets),
+            "crawl": False,
+            "local": False,
+            "map": True,
+            "manifest_path": manifest_path or None,
+            "map_path": map_path or None,
+            "page_count": len(urls),
+            "discovery": discovery,
+        }
+        if settings["format"] not in {"png", "jpeg"}:
+            raise RestedCaptureError("format must be png or jpeg")
+        return urls, targets, settings
 
     if local_enabled:
         urls, discovery = discover_local_html(
@@ -825,22 +921,6 @@ def build_capture_plan(payload: dict[str, Any]) -> tuple[list[str], list[Capture
         raise RestedCaptureError("add at least one URL")
     if len(urls) > MAX_URLS:
         raise RestedCaptureError(f"too many URLs; maximum is {MAX_URLS}")
-
-    viewport_ids = payload.get("viewports") or list(DEFAULT_VIEWPORTS)
-    if not isinstance(viewport_ids, list):
-        raise RestedCaptureError("viewports must be a list")
-    viewport_ids = [str(v).strip().lower() for v in viewport_ids if str(v).strip()]
-    if not viewport_ids:
-        raise RestedCaptureError("choose at least one viewport")
-
-    schemes = payload.get("schemes") or list(DEFAULT_SCHEMES)
-    if isinstance(schemes, str):
-        schemes = [schemes]
-    if not isinstance(schemes, list):
-        raise RestedCaptureError("schemes must be a list")
-    schemes = [str(s).strip().lower() for s in schemes if str(s).strip()]
-    if not schemes:
-        raise RestedCaptureError("choose at least one color scheme")
 
     targets: list[CaptureTarget] = []
     for url_index, url in enumerate(urls, start=1):
@@ -886,9 +966,13 @@ def build_capture_plan(payload: dict[str, Any]) -> tuple[list[str], list[Capture
 
 
 def _capture_file_name(target: CaptureTarget, fmt: str) -> str:
+    ext = "jpg" if fmt == "jpeg" else "png"
+    if target.pathway_id:
+        pid = _slug(target.pathway_id, f"pathway-{target.index:03d}")
+        status = _slug(target.pathway_status or "unknown", "unknown")
+        return f"{target.index:03d}-{pid}-{status}-{target.viewport_id}-{target.scheme}.{ext}"
     parsed = urlparse(target.url)
     site = _slug(parsed.netloc + parsed.path, f"site-{target.index:03d}")
-    ext = "jpg" if fmt == "jpeg" else "png"
     return f"{target.index:03d}-{site}-{target.viewport_id}-{target.scheme}.{ext}"
 
 

@@ -46,6 +46,9 @@ class RestedCaptureRequest(BaseModel):
     export_dir: str | None = None
     export_mode: Literal["zip", "folder"] = "zip"
     name: str | None = None
+    manifest_path: str | None = None
+    map_path: str | None = None
+    base_url: str | None = None
 
 
 def _request_payload(model: BaseModel) -> dict[str, Any]:
