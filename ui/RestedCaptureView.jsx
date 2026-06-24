@@ -160,10 +160,13 @@ function RestedCaptureView() {
         <div>
           <div className="capture__eyebrow"><IconCamera size={14} /> WEBSITE CAPTURE</div>
           <div className="capture__brand">
-            <span className="capture__brand-mark" aria-hidden="true" />
+            <img className="capture__brand-mark" src="/assets/rhobear-logo.png" alt="Rhobear (amber)" />
             <span>SunSponge</span>
           </div>
-          <h1 className="capture__title">Capture Studio</h1>
+          <div className="capture__title-row">
+            <h1 className="capture__title">Capture Studio</h1>
+            <img className="capture__mascot" src="/assets/rhobear-logo.png" alt="" aria-hidden="true" />
+          </div>
         </div>
         <div className="capture__summary">
           <span>{importSummary}</span>
