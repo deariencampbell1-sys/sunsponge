@@ -1,0 +1,24 @@
+Traceback (most recent call last):
+  File "/opt/rhobear/projects/brand-spread/pt-sunsponge/src/sunsponge/app.py", line 77, in post_rested_capture_job
+    return _CAPTURE_MANAGER.start(_request_payload(body))
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/rhobear/projects/brand-spread/pt-sunsponge/src/sunsponge/capture_service.py", line 1179, in start
+    urls, targets, settings = build_capture_plan(payload)
+                              ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/opt/rhobear/projects/brand-spread/pt-sunsponge/src/sunsponge/capture_service.py", line 832, in build_capture_plan
+    pathway_map = load_pathway_map(
+        manifest_path=manifest_path or None,
+        map_path=map_path or None,
+    )
+  File "/opt/rhobear/projects/brand-spread/pt-sunsponge/src/sunsponge/pathway_map.py", line 53, in load_pathway_map
+    return parse_verifier_json(Path(map_path))
+  File "/opt/rhobear/projects/brand-spread/pt-sunsponge/src/sunsponge/pathway_map.py", line 76, in parse_verifier_json
+    data = json.loads(map_path.read_text(encoding="utf-8"))
+                      ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/pathlib/__init__.py", line 788, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/pathlib/__init__.py", line 772, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent/path/foo.json'
