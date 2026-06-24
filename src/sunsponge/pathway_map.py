@@ -48,14 +48,31 @@ def load_pathway_map(
     if manifest_path and map_path:
         raise RestedCaptureError("provide manifest_path or map_path, not both")
     if manifest_path:
-        return parse_manifest_md(Path(manifest_path))
+        path = Path(manifest_path)
+        if not path.is_file():
+            # Name the offending input but never echo the path itself, so the
+            # HTTP 400 body / server log cannot leak absolute server paths.
+            raise RestedCaptureError(
+                "manifest_path does not exist or is not a readable file"
+            )
+        return parse_manifest_md(path)
     if map_path:
-        return parse_verifier_json(Path(map_path))
+        path = Path(map_path)
+        if not path.is_file():
+            raise RestedCaptureError(
+                "map_path does not exist or is not a readable file"
+            )
+        return parse_verifier_json(path)
     raise RestedCaptureError("manifest_path or map_path is required for map mode")
 
 
 def parse_manifest_md(manifest_path: Path) -> dict[str, Any]:
-    raw = manifest_path.read_text(encoding="utf-8")
+    try:
+        raw = manifest_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RestedCaptureError(
+            "manifest_path could not be read as UTF-8 text"
+        ) from exc
     sections = _split_sections(raw)
     return {
         "raw": raw,
@@ -73,7 +90,18 @@ def parse_manifest_md(manifest_path: Path) -> dict[str, Any]:
 
 
 def parse_verifier_json(map_path: Path) -> dict[str, Any]:
-    data = json.loads(map_path.read_text(encoding="utf-8"))
+    try:
+        text = map_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RestedCaptureError(
+            "map_path could not be read as UTF-8 text"
+        ) from exc
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise RestedCaptureError(
+            "map_path is not valid verifier JSON"
+        ) from exc
     if not isinstance(data, dict):
         raise RestedCaptureError("verifier map JSON must be an object")
 
@@ -117,7 +145,7 @@ def parse_verifier_json(map_path: Path) -> dict[str, Any]:
 
     return {
         "raw": None,
-        "hash": hashlib.sha256(map_path.read_bytes()).hexdigest(),
+        "hash": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "file": str(map_path),
         "parsedAt": datetime.now(timezone.utc).isoformat(),
         "summary": data.get("manifest_summary") or data.get("summary") or {},

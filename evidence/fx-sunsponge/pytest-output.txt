@@ -1,0 +1,48 @@
+============================= test session starts ==============================
+collecting ... collected 37 items
+
+tests/test_capture_service.py::test_normalize_url_adds_https PASSED      [  2%]
+tests/test_capture_service.py::test_normalize_url_rejects_unsupported_scheme PASSED [  5%]
+tests/test_capture_service.py::test_normalize_url_accepts_local_html PASSED [  8%]
+tests/test_capture_service.py::test_discover_local_html_folder_prioritizes_hub_sequence PASSED [ 10%]
+tests/test_capture_service.py::test_build_capture_plan_expands_state_matrix PASSED [ 13%]
+tests/test_capture_service.py::test_same_site_page_urls_filters_assets_external_and_fragments PASSED [ 16%]
+tests/test_capture_service.py::test_build_capture_plan_crawl_uses_discovered_pages PASSED [ 18%]
+tests/test_capture_service.py::test_build_capture_plan_local_folder_expands_files PASSED [ 21%]
+tests/test_capture_service.py::test_api_registers_capture_routes PASSED  [ 24%]
+tests/test_capture_service.py::test_api_can_start_capture_job PASSED     [ 27%]
+tests/test_pathway_map.py::test_parse_manifest_sample_extracts_pathways PASSED [ 29%]
+tests/test_pathway_map.py::test_parse_verifier_json_extracts_findings_as_pathways PASSED [ 32%]
+tests/test_pathway_map.py::test_build_capture_plan_from_manifest_fixture PASSED [ 35%]
+tests/test_pathway_map.py::test_build_capture_plan_from_verifier_json_fixture PASSED [ 37%]
+tests/test_pathway_map.py::test_build_capture_plan_from_rhobear_manifest SKIPPED [ 40%]
+tests/test_pathway_map.py::test_build_capture_plan_from_verifier_sample_output SKIPPED [ 43%]
+tests/test_release_blockers.py::test_load_pathway_map_rejects_missing_manifest PASSED [ 45%]
+tests/test_release_blockers.py::test_load_pathway_map_rejects_missing_map PASSED [ 48%]
+tests/test_release_blockers.py::test_build_capture_plan_rejects_missing_manifest PASSED [ 51%]
+tests/test_release_blockers.py::test_build_capture_plan_rejects_missing_map PASSED [ 54%]
+tests/test_release_blockers.py::test_api_returns_400_for_bad_manifest_path PASSED [ 56%]
+tests/test_release_blockers.py::test_api_returns_400_for_bad_map_path PASSED [ 59%]
+tests/test_release_blockers.py::test_api_returns_400_for_directory_as_manifest_path PASSED [ 62%]
+tests/test_release_blockers.py::test_build_capture_plan_rejects_not_a_url PASSED [ 64%]
+tests/test_release_blockers.py::test_build_capture_plan_still_accepts_bare_host PASSED [ 67%]
+tests/test_release_blockers.py::test_build_capture_plan_still_accepts_full_url PASSED [ 70%]
+tests/test_release_blockers.py::test_build_capture_plan_empty_list_still_uses_existing_error PASSED [ 72%]
+tests/test_release_blockers.py::test_build_capture_plan_rejects_only_empty_string PASSED [ 75%]
+tests/test_release_blockers.py::test_api_returns_400_for_not_a_url PASSED [ 78%]
+tests/test_release_blockers.py::test_api_still_queues_valid_url PASSED   [ 81%]
+tests/test_release_blockers.py::test_api_still_rejects_empty_list PASSED [ 83%]
+tests/test_release_blockers.py::test_capture_plan_targets_have_pathway_metadata_for_map_run PASSED [ 86%]
+tests/test_release_blockers.py::test_capture_plan_targets_have_empty_pathway_for_plain_url_run PASSED [ 89%]
+tests/test_release_blockers.py::test_api_results_row_has_pathway_fields_for_map_run PASSED [ 91%]
+tests/test_release_blockers.py::test_parse_manifest_sample_round_trip_works PASSED [ 94%]
+tests/test_release_blockers.py::test_sample_manifest_is_readable PASSED  [ 97%]
+tests/test_release_blockers.py::test_sample_verifier_map_is_readable PASSED [100%]
+
+=============================== warnings summary ===============================
+../../../../../home/slang/.local/lib/python3.14/site-packages/fastapi/testclient.py:1
+  /home/slang/.local/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=================== 35 passed, 2 skipped, 1 warning in 0.42s ===================

@@ -308,6 +308,29 @@ def normalize_url(value: str) -> str:
     return _canonical_page_url(value)
 
 
+def _is_valid_user_url(value: str) -> bool:
+    """True for inputs that look like URLs the user actually intended.
+
+    Local file paths, inputs that already carry a scheme, and bare hosts that
+    contain a dot all count. The point is to reject obvious typos like
+    ``not-a-url`` so they are not silently coerced into ``https://not-a-url/``
+    and then handed to Playwright, which would only fail on a DNS error after
+    a full capture cycle. Deeper scheme/host validation is still done by
+    :func:`_canonical_page_url` when the URL is normalized.
+    """
+    if not value or not value.strip():
+        return False
+    candidate = value.strip()
+    if _is_local_input(candidate):
+        return True
+    if "://" in candidate:
+        return True
+    # Bare host form: require a dot in the host portion (the bit before any
+    # path) so something like "example.com" passes but "not-a-url" does not.
+    host = candidate.split("/", 1)[0]
+    return "." in host
+
+
 def _dedupe_urls(values: list[str]) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
@@ -801,6 +824,15 @@ def build_capture_plan(payload: dict[str, Any]) -> tuple[list[str], list[Capture
     map_enabled = bool(manifest_path or map_path)
 
     urls = [str(item).strip() for item in raw_urls if str(item).strip()]
+    # Reject obvious non-URLs up front (e.g. "not-a-url") so we don't queue a
+    # capture that would only fail on DNS deep inside Playwright. The empty-list
+    # case still falls through to the existing "add at least one URL" check.
+    if not map_enabled:
+        for value in urls:
+            if not _is_valid_user_url(value):
+                raise RestedCaptureError(
+                    f"invalid URL (need http/https scheme and host): {value!r}"
+                )
     sitemap_url = str(payload.get("sitemap_url") or "").strip()
     crawl_url = str(payload.get("crawl_url") or "").strip()
     local_path = str(payload.get("local_path") or "").strip()
@@ -1038,6 +1070,8 @@ async def _capture_one(context: Any, target: CaptureTarget, settings: dict[str, 
                 "scheme": target.scheme,
                 "width": target.width,
                 "height": target.height,
+                "pathway_id": target.pathway_id or None,
+                "pathway_status": target.pathway_status or None,
                 "status": "ok",
                 "file": path.name,
                 "bytes": stat.st_size,
@@ -1062,6 +1096,8 @@ async def _capture_one(context: Any, target: CaptureTarget, settings: dict[str, 
         "scheme": target.scheme,
         "width": target.width,
         "height": target.height,
+        "pathway_id": target.pathway_id or None,
+        "pathway_status": target.pathway_status or None,
         "status": "failed",
         "error": last_error,
         "attempts": attempts,
