@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SunSponge — soak up a whole website into screenshots</title>
+<meta name="description" content="Open-source website capture. Load a site (or feed it a sitemap), and SunSponge captures every page across viewports and color schemes into one named ZIP. No AI — just Playwright. MIT." />
+<meta property="og:title" content="SunSponge — Website Capture" />
+<meta property="og:description" content="Soak up a whole website into screenshots. Every page, every viewport, light and dark, one ZIP. No AI. MIT." />
+<style>
+  /* ---- brand tokens (SunSponge: deep navy + sun-amber — sibling to RHOBEAR Designs) ---- */
+  :root{
+    --bg:#11111d; --bg-2:#161627; --panel:#1f1f33; --line:#2d2d45;
+    --ink:#ECEAF2; --ink-2:#A6A3B8; --ink-3:#6f6c8c;
+    --navy:#1A1A2E;
+    --amber:#F5A524; --amber-deep:#D98A12; --amber-soft:#ffd27a;
+    --red:#F5A524; --red-deep:#D98A12; /* legacy aliases kept → amber */
+    --ui:"Segoe UI",system-ui,-apple-system,Helvetica,Arial,sans-serif;
+    --mono:"SFMono-Regular",ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,monospace;
+    --maxw:1180px;
+  }
+  *{box-sizing:border-box}
+  html{color-scheme:dark;scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);
+    font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  }
+  #stars{position:fixed;inset:0;z-index:0;pointer-events:none}
+  main,header,footer{position:relative;z-index:1}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  a{color:inherit;text-decoration:none}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--amber);font-weight:600}
+  h1,h2,h3{margin:0;line-height:1.05;letter-spacing:-.02em;font-weight:700;text-wrap:balance}
+  p{margin:0;text-wrap:pretty}
+  .muted{color:var(--ink-2)}
+  code{font-family:var(--mono);font-size:.92em;color:var(--amber-soft)}
+
+  /* nav */
+  header{padding:22px 0}
+  .nav{display:flex;align-items:center;justify-content:space-between}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em}
+  .nav nav{display:flex;gap:26px;font-size:14px;color:var(--ink-2)}
+  .nav nav a:hover{color:var(--ink)}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:11px;font-weight:600;font-size:15px;transition:transform .15s ease,background .15s ease,border-color .15s}
+  .btn-primary{background:var(--amber);color:#1a1205}
+  .btn-primary:hover{background:var(--amber-deep);transform:translateY(-1px)}
+  .btn-ghost{border:1px solid var(--line);color:var(--ink)}
+  .btn-ghost:hover{border-color:var(--amber);transform:translateY(-1px)}
+
+  /* bear mark — the SunSponge bear (the family bear, sun-amber) */
+  .bear-chip{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;flex:none;
+    background:radial-gradient(120% 120% at 30% 20%, rgba(245,165,36,.18), transparent 60%), var(--navy);
+    border:1px solid rgba(245,165,36,.30);box-shadow:0 0 20px rgba(245,165,36,.16)}
+  .bear-chip svg{width:26px;height:26px;display:block}
+  footer .bear-chip{width:30px;height:30px;border-radius:9px}
+  footer .bear-chip svg{width:22px;height:22px}
+
+  /* hero */
+  .hero{padding:78px 0 36px;display:grid;grid-template-columns:1.05fr .95fr;gap:54px;align-items:center}
+  .hero h1{font-size:clamp(40px,6vw,68px)}
+  .hero h1 .alt{color:var(--amber);font-style:normal}
+  .lede{margin-top:22px;font-size:19px;color:var(--ink-2);max-width:32ch}
+  .cta{margin-top:30px;display:flex;gap:14px;flex-wrap:wrap}
+  .meta{margin-top:22px;display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:12.5px;color:var(--ink-3);letter-spacing:.04em}
+  .meta b{color:var(--ink-2);font-weight:600}
+
+  /* capture-grid mock (what SunSponge produces) */
+  .mock{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--bg-2);box-shadow:0 30px 80px -40px #000}
+  .mock .bar{display:flex;align-items:center;gap:7px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .mock .bar i{width:11px;height:11px;border-radius:50%;background:var(--line);display:block}
+  .mock .bar i:first-child{background:var(--amber)}
+  .mock .bar .tag{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+  .mock .grid{padding:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .shot{border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--navy);aspect-ratio:4/3;display:flex;flex-direction:column}
+  .shot .h{height:8px;background:linear-gradient(90deg,var(--amber),transparent);opacity:.8}
+  .shot .b{flex:1;padding:9px;display:flex;flex-direction:column;gap:5px}
+  .shot .ln{height:5px;border-radius:3px;background:var(--line)}
+  .shot .ln.w1{width:80%}.shot .ln.w2{width:62%}.shot .ln.w3{width:71%}
+  .shot.cap{outline:2px solid var(--amber);outline-offset:-2px;box-shadow:0 0 22px rgba(245,165,36,.25)}
+  .shot.dark{background:#0a0a12}
+  .shot .cap-tag{font-family:var(--mono);font-size:8.5px;color:var(--amber);padding:0 9px 8px}
+  .mock .foot{padding:11px 14px;border-top:1px solid var(--line);background:var(--panel);display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+  .mock .foot .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber);flex:none}
+
+  /* sections */
+  section{padding:64px 0}
+  .sec-head{max-width:56ch}
+  .sec-head h2{font-size:clamp(28px,3.5vw,40px);margin-top:14px}
+  .sec-head p{margin-top:14px;color:var(--ink-2);font-size:18px}
+
+  /* bento */
+  .bento{margin-top:40px;display:grid;grid-template-columns:repeat(6,1fr);gap:16px}
+  .card{border:1px solid var(--line);border-radius:15px;background:linear-gradient(180deg,var(--bg-2),var(--bg));padding:26px;transition:border-color .2s,transform .2s}
+  .card:hover{border-color:var(--amber-deep);transform:translateY(-3px)}
+  .card h3{font-size:20px;margin-bottom:10px}
+  .card p{color:var(--ink-2);font-size:15.5px}
+  .card .k{font-family:var(--mono);font-size:12px;color:var(--amber);letter-spacing:.1em;text-transform:uppercase}
+  .c-a{grid-column:span 4}.c-b{grid-column:span 2}
+  .c-c{grid-column:span 2}.c-d{grid-column:span 2}.c-e{grid-column:span 2}
+  .c-wide{grid-column:span 6;display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:center}
+
+  /* steps */
+  .steps{margin-top:40px;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:15px;overflow:hidden}
+  .step{background:var(--bg-2);padding:26px 22px}
+  .step .n{font-family:var(--mono);color:var(--amber);font-size:13px}
+  .step h3{font-size:17px;margin:12px 0 8px}
+  .step p{font-size:14.5px;color:var(--ink-2)}
+
+  /* pricing */
+  .price-wrap{margin-top:38px;display:flex;justify-content:center}
+  .price-card{border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,var(--bg-2),var(--bg));padding:38px 42px;max-width:440px;width:100%;box-shadow:0 30px 80px -50px #000,0 0 0 1px rgba(245,165,36,.06);text-align:center}
+  .price-card .amt{font-size:64px;font-weight:800;letter-spacing:-.03em;line-height:1;color:var(--ink)}
+  .price-card .amt small{font-size:19px;color:var(--ink-2);font-weight:600}
+  .price-card .sub{margin-top:10px;color:var(--amber);font-family:var(--mono);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase}
+  .price-card ul{list-style:none;margin:24px 0 0;padding:0;text-align:left;display:grid;gap:11px}
+  .price-card li{display:flex;gap:10px;color:var(--ink-2);font-size:15px}
+  .price-card li::before{content:"✓";color:var(--amber);font-weight:800}
+  .price-card .btn{margin-top:28px;width:100%;justify-content:center}
+
+  /* closing */
+  .close{text-align:center;padding:96px 0}
+  .close h2{font-size:clamp(32px,5vw,56px)}
+  .close p{margin:18px auto 0;max-width:48ch;color:var(--ink-2);font-size:19px}
+  .close .cta{justify-content:center}
+
+  footer{border-top:1px solid var(--line);padding:34px 0;color:var(--ink-3);font-size:14px}
+  .foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;align-items:center}
+  .eco{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+  .eco a{color:var(--ink-3)}.eco a:hover{color:var(--amber)}
+
+  .reveal{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease}
+  .reveal.in{opacity:1;transform:none}
+
+  @media(max-width:900px){
+    .hero{grid-template-columns:1fr;gap:36px;padding-top:48px}
+    .bento{grid-template-columns:repeat(2,1fr)}
+    .c-a,.c-b,.c-c,.c-d,.c-e{grid-column:span 2}
+    .c-wide{grid-column:span 2;grid-template-columns:1fr}
+    .steps{grid-template-columns:1fr 1fr}
+    .nav nav{display:none}
+  }
+  @media(prefers-reduced-motion:reduce){.reveal{transition:none}*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<canvas id="stars" aria-hidden="true"></canvas>
+
+<header>
+  <div class="wrap nav">
+    <div class="brand"><span class="bear-chip"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="17" cy="18" r="9.5" fill="#F5A524"/><circle cx="47" cy="18" r="9.5" fill="#F5A524"/><circle cx="17" cy="18" r="4" fill="#1a1205"/><circle cx="47" cy="18" r="4" fill="#1a1205"/><circle cx="32" cy="37" r="22" fill="#F5A524"/><ellipse cx="32" cy="43" rx="10.5" ry="8" fill="#1a1205"/><circle cx="24.5" cy="33" r="2.6" fill="#1a1205"/><circle cx="39.5" cy="33" r="2.6" fill="#1a1205"/><ellipse cx="32" cy="40" rx="2.8" ry="2" fill="#F5A524"/></svg></span> SunSponge</div>
+    <nav>
+      <a href="#what">What it does</a>
+      <a href="#how">How it works</a>
+      <a href="#price">Pricing</a>
+      <a href="#open">Open source</a>
+    </nav>
+    <a class="btn btn-ghost" href="https://github.com/deariencampbell1-sys/sunsponge">GitHub</a>
+  </div>
+</header>
+
+<main>
+  <section class="hero wrap">
+    <div>
+      <span class="eyebrow">Website capture · MIT · no AI</span>
+      <h1 style="margin-top:18px">Soak up a whole website<br>into <span class="alt">screenshots</span>.</h1>
+      <p class="lede">Point it at a site — or feed it a sitemap — and SunSponge captures every page across viewports and color schemes, then hands you one named ZIP. No model, no account, no guesswork.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="#how">See how it works</a>
+        <a class="btn btn-ghost" href="https://github.com/deariencampbell1-sys/sunsponge">Read the source</a>
+      </div>
+      <div class="meta">
+        <span><b>MIT</b> licensed</span>
+        <span><b>Just</b> Playwright</span>
+        <span><b>Outputs</b> PNG · ZIP</span>
+      </div>
+    </div>
+
+    <div class="mock reveal">
+      <div class="bar"><i></i><i></i><i></i><span class="tag">capturing example.com</span></div>
+      <div class="grid">
+        <div class="shot"><div class="h"></div><div class="b"><div class="ln w1"></div><div class="ln w2"></div><div class="ln w3"></div></div></div>
+        <div class="shot cap"><div class="h"></div><div class="b"><div class="ln w2"></div><div class="ln w1"></div></div><div class="cap-tag">002-pricing-desktop-light</div></div>
+        <div class="shot"><div class="h"></div><div class="b"><div class="ln w3"></div><div class="ln w2"></div></div></div>
+        <div class="shot dark"><div class="h"></div><div class="b"><div class="ln w1"></div><div class="ln w3"></div></div></div>
+        <div class="shot"><div class="h"></div><div class="b"><div class="ln w2"></div><div class="ln w2"></div><div class="ln w1"></div></div></div>
+        <div class="shot dark"><div class="h"></div><div class="b"><div class="ln w3"></div><div class="ln w1"></div></div></div>
+      </div>
+      <div class="foot"><span class="dot"></span> 6 pages · 3 viewports · light + dark · 36 PNGs → site-capture.zip</div>
+    </div>
+  </section>
+
+  <section id="what" class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">What it does</span>
+      <h2>One job. Every page, every state, captured.</h2>
+      <p>SunSponge crawls a site or expands a map you already have, then drives Playwright to screenshot each page at every viewport and color scheme. The output is clean PNGs, named so you can tell exactly what each one is.</p>
+    </div>
+
+    <div class="bento">
+      <div class="card c-a reveal">
+        <div class="k">Discover</div>
+        <h3>Crawl it, or hand it a map</h3>
+        <p>Let SunSponge crawl from a URL, read an XML sitemap, or take a pathway map — a Markdown manifest or a <a href="https://github.com/deariencampbell1-sys/rhobear-verifier" style="color:var(--amber)">rhobear-verifier</a> JSON report — and skip blind crawling entirely.</p>
+      </div>
+      <div class="card c-b reveal">
+        <div class="k">Viewports</div>
+        <h3>Desktop, tablet, phone</h3>
+        <p>Every page captured at each width, so the responsive states are in the box too.</p>
+      </div>
+      <div class="card c-c reveal">
+        <div class="k">Schemes</div>
+        <h3>Light and dark</h3>
+        <p>Both color schemes per page, driven through the real browser.</p>
+      </div>
+      <div class="card c-d reveal">
+        <div class="k">Named output</div>
+        <h3>You can read the filenames</h3>
+        <p><code>001-capture-start-wired-desktop-light.png</code> — id, status, viewport, scheme. No mystery files.</p>
+      </div>
+      <div class="card c-e reveal">
+        <div class="k">Download</div>
+        <h3>One ZIP, yours</h3>
+        <p>Start a job, poll it, pull the ZIP. Local service, your machine.</p>
+      </div>
+      <div class="card c-wide reveal">
+        <div>
+          <div class="k">No AI — on purpose</div>
+          <h3 style="margin-bottom:12px">Just Playwright, a crawl plan, and PNG output.</h3>
+          <p class="muted">There's no model in the loop, no key to bring, nothing phoning home. SunSponge is a deterministic capture engine: feed it the same site and map, get the same shots. That's what makes it dependable for audits, design reviews, and before/after diffs.</p>
+        </div>
+        <div class="mock" style="box-shadow:none">
+          <div class="foot" style="border-top:none;border-bottom:1px solid var(--line)"><span class="dot"></span> POST /api/rested-captures/jobs</div>
+          <div class="foot" style="color:var(--ink-3)"><span class="dot" style="background:var(--line);box-shadow:none"></span> GET …/{job_id}/download → site-capture.zip</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">How it works</span>
+      <h2>Four steps. No model, no account.</h2>
+    </div>
+    <div class="steps reveal">
+      <div class="step"><div class="n">01</div><h3>Point</h3><p>Give it a base URL, an XML sitemap, or a pathway map you already have.</p></div>
+      <div class="step"><div class="n">02</div><h3>Plan</h3><p>It builds the crawl plan and expands every pathway into capture targets.</p></div>
+      <div class="step"><div class="n">03</div><h3>Capture</h3><p>Playwright shoots each page × viewport × scheme to clean PNGs.</p></div>
+      <div class="step"><div class="n">04</div><h3>Download</h3><p>Pull a named ZIP. Diff it, archive it, drop it in a review. You own it.</p></div>
+    </div>
+  </section>
+
+  <section id="open" class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Open source</span>
+      <h2>MIT, runs on your machine, sibling to RHOBEAR Designs.</h2>
+      <p>A FastAPI service and a small static UI over a Playwright capture engine — that's the whole thing. Same deep-navy canvas as Designs, a sun-amber accent instead of red. Clone it, fork it, wire it into your own pipeline. Captures feed straight into a Designs edit or a Reviews pass.</p>
+    </div>
+    <div class="cta reveal" style="margin-top:28px">
+      <a class="btn btn-primary" href="https://github.com/deariencampbell1-sys/sunsponge">Clone on GitHub</a>
+      <a class="btn btn-ghost" href="https://github.com/deariencampbell1-sys/sunsponge#readme">Read the docs</a>
+    </div>
+  </section>
+
+  <section id="price" class="wrap">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Pricing</span>
+      <h2>Free. That's the price.</h2>
+      <p>No trial, no seats, no capture cap. SunSponge is MIT and $0 — the price is zero on purpose. There's no model to pay for because there's no model at all. Run it locally, capture as much as you want, keep every file.</p>
+    </div>
+    <div class="price-wrap reveal">
+      <div class="price-card">
+        <div class="amt">$0<small> / forever</small></div>
+        <div class="sub">MIT · no AI · no account</div>
+        <ul>
+          <li>Crawl, sitemap, or pathway-map driven capture</li>
+          <li>Every viewport × light/dark, named PNGs in one ZIP</li>
+          <li>Local FastAPI service — nothing leaves your machine</li>
+          <li>Clone it, fork it, wire it into any pipeline</li>
+        </ul>
+        <a class="btn btn-primary" href="https://github.com/deariencampbell1-sys/sunsponge">Get it on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="close wrap reveal">
+    <span class="eyebrow">Start now</span>
+    <h2>Point it at a site. Walk away with the shots.</h2>
+    <p>Crawl plan in, named ZIP out. No model, no lock-in.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/deariencampbell1-sys/sunsponge">Get SunSponge</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div class="brand"><span class="bear-chip"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="17" cy="18" r="9.5" fill="#F5A524"/><circle cx="47" cy="18" r="9.5" fill="#F5A524"/><circle cx="17" cy="18" r="4" fill="#1a1205"/><circle cx="47" cy="18" r="4" fill="#1a1205"/><circle cx="32" cy="37" r="22" fill="#F5A524"/><ellipse cx="32" cy="43" rx="10.5" ry="8" fill="#1a1205"/><circle cx="24.5" cy="33" r="2.6" fill="#1a1205"/><circle cx="39.5" cy="33" r="2.6" fill="#1a1205"/><ellipse cx="32" cy="40" rx="2.8" ry="2" fill="#F5A524"/></svg></span> SunSponge</div>
+    <div class="eco">
+      <a href="https://rhobear.ai">Hub</a>
+      <a href="https://reviews.rhobear.ai">Reviews</a>
+      <a href="https://sales.rhobear.ai">Sales</a>
+      <a href="https://github.com/deariencampbell1-sys/rhobear-designs">Designs</a>
+      <span>· MIT · part of the RHOBEAR family</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // starfield — quiet navy, amber sparks
+  (function(){
+    var c=document.getElementById('stars'),x=c.getContext('2d'),s=[],w,h;
+    function size(){w=c.width=innerWidth;h=c.height=innerHeight;s=[];var n=Math.min(140,(w*h)/16000);for(var i=0;i<n;i++)s.push({x:Math.random()*w,y:Math.random()*h,r:Math.random()*1.3+.2,a:Math.random()*.6+.15,d:Math.random()*.4+.1});}
+    function draw(){x.clearRect(0,0,w,h);for(var i=0;i<s.length;i++){var p=s[i];p.y+=p.d*.12;if(p.y>h)p.y=0;x.globalAlpha=p.a;x.fillStyle=i%9===0?'#F5A524':'#c8c4dc';x.beginPath();x.arc(p.x,p.y,p.r,0,6.28);x.fill();}requestAnimationFrame(draw);}
+    size();draw();addEventListener('resize',size);
+  })();
+  // scroll reveal
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}})},{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(function(el){io.observe(el);});
+</script>
+</body>
+</html>
