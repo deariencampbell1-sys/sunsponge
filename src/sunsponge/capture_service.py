@@ -1215,7 +1215,9 @@ class RestedCaptureManager:
         urls, targets, settings = build_capture_plan(payload)
         job_id = uuid.uuid4().hex[:12]
         job_name = _slug(str(payload.get("name") or "") or _job_name(), _job_name())
-        work_dir = self.root_dir / job_id
+        workspace_id = str(payload.get("workspace_id") or "").strip()
+        ws_slug = _slug(workspace_id, "workspace") if workspace_id else ""
+        work_dir = self.root_dir / ws_slug / job_id if ws_slug else self.root_dir / job_id
         shots_dir = work_dir / "shots"
         export_dir_raw = str(payload.get("export_dir") or "").strip()
         export_mode = str(payload.get("export_mode") or "zip").lower()
@@ -1236,6 +1238,7 @@ class RestedCaptureManager:
             "results": [],
             "settings": settings,
             "discovery": settings.get("discovery") or {},
+            "workspace_id": workspace_id or None,
             "work_dir": str(work_dir),
             "output_dir": "",
             "zip_path": "",
@@ -1266,6 +1269,25 @@ class RestedCaptureManager:
         if not zip_path.is_file():
             raise FileNotFoundError(job_id)
         return zip_path
+
+    def shot_path(self, job_id: str, file: str) -> Path:
+        """Resolve an individual shot file for token-gated retrieval.
+
+        ``file`` is reduced to a bare basename and the resolved path must stay
+        inside the job's ``shots/`` dir, so this cannot be used to read
+        arbitrary files off the server.
+        """
+        job = self.get(job_id)
+        work_dir = Path(str(job.get("work_dir") or ""))
+        shots_dir = (work_dir / "shots").resolve()
+        candidate = (shots_dir / Path(file).name).resolve()
+        try:
+            candidate.relative_to(shots_dir)
+        except ValueError as exc:  # traversal attempt — treat as not found
+            raise FileNotFoundError(job_id) from exc
+        if not candidate.is_file():
+            raise FileNotFoundError(job_id)
+        return candidate
 
     def _patch(self, job_id: str, patch: dict[str, Any]) -> None:
         with self._lock:

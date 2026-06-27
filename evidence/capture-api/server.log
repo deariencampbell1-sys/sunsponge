@@ -1,0 +1,22 @@
+INFO:     Started server process [2260000]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8787 (Press CTRL+C to quit)
+INFO:     127.0.0.1:33974 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33982 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33986 - "POST /v1/capture HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:33996 - "POST /v1/capture HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:42320 - "POST /v1/capture HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42328 - "GET /v1/capture/d14b1d26a582 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42342 - "GET /v1/capture/d14b1d26a582 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60952 - "GET /v1/capture/d14b1d26a582/shots/001-example-com-desktop-dark.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60968 - "GET /v1/capture/d14b1d26a582/shots/001-example-com-desktop-light.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60984 - "GET /v1/capture/d14b1d26a582/shots/001-example-com-mobile-dark.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60998 - "GET /v1/capture/d14b1d26a582/shots/001-example-com-mobile-light.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32780 - "GET /v1/capture/d14b1d26a582/shots/001-example-com-tablet-dark.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32786 - "GET /v1/capture/d14b1d26a582/shots/001-example-com-tablet-light.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39160 - "GET /v1/capture/d14b1d26a582/shots/001-example-com-desktop-light.png HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:39170 - "GET /v1/capture/nope HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:39174 - "POST /v1/capture HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:39178 - "POST /v1/capture HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:39184 - "GET /v1/capture/d14b1d26a582/shots/../../README.md HTTP/1.1" 404 Not Found
