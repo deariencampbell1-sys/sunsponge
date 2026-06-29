@@ -54,7 +54,9 @@ function RestedCaptureView() {
   const canRun = !busy && !jobRunning && activeStates > 0 && mapReady && htmlReady && api;
 
   const importSummary = mapReady ? (mapIsJson ? "Verifier map" : "Pathway map") : "No map yet";
-  const shotSummary = total ? total + " shots" : (discoveredPages ? discoveredPages + " states" : activeStates + "/state");
+  const shotSummary = total
+    ? total + " shots"
+    : (discoveredPages ? discoveredPages + " states" : viewports.length + "vp · " + schemes.length + " scheme");
 
   React.useEffect(() => {
     if (!job || !jobRunning || !api) return undefined;
@@ -132,20 +134,13 @@ function RestedCaptureView() {
   return (
     <div className="capture">
       <div className="capture__top">
-        <div>
+        <div className="capture__heading">
           <div className="capture__eyebrow"><IconCamera size={14} /> RESTED-STATE CAPTURE</div>
-          <div className="capture__brand">
-            <img className="capture__brand-mark" src="/assets/rhobear-logo.png" alt="Rhobear" />
-            <span>RHOBEAR Captur'd</span>
-          </div>
-          <div className="capture__title-row">
-            <h1 className="capture__title">Capture Studio</h1>
-            <img className="capture__mascot" src="/assets/rhobear-logo.png" alt="" aria-hidden="true" />
-          </div>
+          <h1 className="capture__title">Capture Studio</h1>
         </div>
         <div className="capture__summary">
           <span>{importSummary}</span>
-          <span>{activeStates} states</span>
+          <span>{activeStates} per run</span>
           <span>{shotSummary}</span>
         </div>
       </div>
