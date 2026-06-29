@@ -3,18 +3,17 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SunSponge — soak up a whole website into screenshots</title>
-<meta name="description" content="Open-source website capture. Load a site (or feed it a sitemap), and SunSponge captures every page across viewports and color schemes into one named ZIP. No AI — just Playwright. MIT." />
-<meta property="og:title" content="SunSponge — Website Capture" />
-<meta property="og:description" content="Soak up a whole website into screenshots. Every page, every viewport, light and dark, one ZIP. No AI. MIT." />
+<title>RHOBEAR Captur'd — portfolio shots of every rested state</title>
+<meta name="description" content="Open-source desktop capture. Point it at the HTML you built, hand it a pathway map, and RHOBEAR Captur'd shoots every rested state across viewports and color schemes into one named ZIP. No URLs, no crawling, no AI — just Playwright. MIT." />
+<meta property="og:title" content="RHOBEAR Captur'd — Rested-State Capture" />
+<meta property="og:description" content="Portfolio-quality screenshots of your own built UI, every state, every viewport, light and dark, one ZIP. Desktop. No URLs. No AI. MIT." />
 <style>
-  /* ---- brand tokens (SunSponge: deep navy + sun-amber — sibling to RHOBEAR Designs) ---- */
+  /* ---- brand tokens (Captur'd: deep navy + sun-amber — sibling to RHOBEAR Designs) ---- */
   :root{
     --bg:#11111d; --bg-2:#161627; --panel:#1f1f33; --line:#2d2d45;
     --ink:#ECEAF2; --ink-2:#A6A3B8; --ink-3:#6f6c8c;
     --navy:#1A1A2E;
     --amber:#F5A524; --amber-deep:#D98A12; --amber-soft:#ffd27a;
-    --red:#F5A524; --red-deep:#D98A12; /* legacy aliases kept → amber */
     --ui:"Segoe UI",system-ui,-apple-system,Helvetica,Arial,sans-serif;
     --mono:"SFMono-Regular",ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,monospace;
     --maxw:1180px;
@@ -47,24 +46,23 @@
   .btn-ghost{border:1px solid var(--line);color:var(--ink)}
   .btn-ghost:hover{border-color:var(--amber);transform:translateY(-1px)}
 
-  /* bear mark — the SunSponge bear (the family bear, sun-amber) */
+  /* bear mark — the canonical RHOBEAR constellation bear, tinted Captur'd amber */
   .bear-chip{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;flex:none;
     background:radial-gradient(120% 120% at 30% 20%, rgba(245,165,36,.18), transparent 60%), var(--navy);
     border:1px solid rgba(245,165,36,.30);box-shadow:0 0 20px rgba(245,165,36,.16)}
-  .bear-chip svg{width:26px;height:26px;display:block}
+  .bear-img{width:78%;height:78%;display:block;object-fit:contain;filter:hue-rotate(-145deg) saturate(1.45) brightness(1.05)}
   footer .bear-chip{width:30px;height:30px;border-radius:9px}
-  footer .bear-chip svg{width:22px;height:22px}
 
   /* hero */
   .hero{padding:78px 0 36px;display:grid;grid-template-columns:1.05fr .95fr;gap:54px;align-items:center}
   .hero h1{font-size:clamp(40px,6vw,68px)}
   .hero h1 .alt{color:var(--amber);font-style:normal}
-  .lede{margin-top:22px;font-size:19px;color:var(--ink-2);max-width:32ch}
+  .lede{margin-top:22px;font-size:19px;color:var(--ink-2);max-width:34ch}
   .cta{margin-top:30px;display:flex;gap:14px;flex-wrap:wrap}
   .meta{margin-top:22px;display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:12.5px;color:var(--ink-3);letter-spacing:.04em}
   .meta b{color:var(--ink-2);font-weight:600}
 
-  /* capture-grid mock (what SunSponge produces) */
+  /* capture-grid mock (what Captur'd produces) */
   .mock{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--bg-2);box-shadow:0 30px 80px -40px #000}
   .mock .bar{display:flex;align-items:center;gap:7px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
   .mock .bar i{width:11px;height:11px;border-radius:50%;background:var(--line);display:block}
@@ -84,7 +82,7 @@
 
   /* sections */
   section{padding:64px 0}
-  .sec-head{max-width:56ch}
+  .sec-head{max-width:58ch}
   .sec-head h2{font-size:clamp(28px,3.5vw,40px);margin-top:14px}
   .sec-head p{margin-top:14px;color:var(--ink-2);font-size:18px}
 
@@ -147,7 +145,7 @@
 
 <header>
   <div class="wrap nav">
-    <div class="brand"><span class="bear-chip"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="17" cy="18" r="9.5" fill="#F5A524"/><circle cx="47" cy="18" r="9.5" fill="#F5A524"/><circle cx="17" cy="18" r="4" fill="#1a1205"/><circle cx="47" cy="18" r="4" fill="#1a1205"/><circle cx="32" cy="37" r="22" fill="#F5A524"/><ellipse cx="32" cy="43" rx="10.5" ry="8" fill="#1a1205"/><circle cx="24.5" cy="33" r="2.6" fill="#1a1205"/><circle cx="39.5" cy="33" r="2.6" fill="#1a1205"/><ellipse cx="32" cy="40" rx="2.8" ry="2" fill="#F5A524"/></svg></span> SunSponge</div>
+    <div class="brand"><span class="bear-chip"><img class="bear-img" src="assets/rhobear-logo.png" alt="" /></span> RHOBEAR Captur'd</div>
     <nav>
       <a href="#what">What it does</a>
       <a href="#how">How it works</a>
@@ -161,56 +159,56 @@
 <main>
   <section class="hero wrap">
     <div>
-      <span class="eyebrow">Website capture · MIT · no AI</span>
-      <h1 style="margin-top:18px">Soak up a whole website<br>into <span class="alt">screenshots</span>.</h1>
-      <p class="lede">Point it at a site — or feed it a sitemap — and SunSponge captures every page across viewports and color schemes, then hands you one named ZIP. No model, no account, no guesswork.</p>
+      <span class="eyebrow">Desktop · MIT · no AI</span>
+      <h1 style="margin-top:18px">Every rested state,<br>shot for your <span class="alt">portfolio</span>.</h1>
+      <p class="lede">Point Captur'd at the HTML you built, hand it a pathway map, and it shoots every rested state across viewports and light/dark into one named ZIP. Runs on your machine. No URLs, no crawling, no guesswork.</p>
       <div class="cta">
         <a class="btn btn-primary" href="#how">See how it works</a>
         <a class="btn btn-ghost" href="https://github.com/deariencampbell1-sys/sunsponge">Read the source</a>
       </div>
       <div class="meta">
         <span><b>MIT</b> licensed</span>
-        <span><b>Just</b> Playwright</span>
+        <span><b>Desktop</b> · local</span>
         <span><b>Outputs</b> PNG · ZIP</span>
       </div>
     </div>
 
     <div class="mock reveal">
-      <div class="bar"><i></i><i></i><i></i><span class="tag">capturing example.com</span></div>
+      <div class="bar"><i></i><i></i><i></i><span class="tag">your-app.html · map-driven</span></div>
       <div class="grid">
         <div class="shot"><div class="h"></div><div class="b"><div class="ln w1"></div><div class="ln w2"></div><div class="ln w3"></div></div></div>
-        <div class="shot cap"><div class="h"></div><div class="b"><div class="ln w2"></div><div class="ln w1"></div></div><div class="cap-tag">002-pricing-desktop-light</div></div>
+        <div class="shot cap"><div class="h"></div><div class="b"><div class="ln w2"></div><div class="ln w1"></div></div><div class="cap-tag">002-menu-open-desktop-light</div></div>
         <div class="shot"><div class="h"></div><div class="b"><div class="ln w3"></div><div class="ln w2"></div></div></div>
         <div class="shot dark"><div class="h"></div><div class="b"><div class="ln w1"></div><div class="ln w3"></div></div></div>
         <div class="shot"><div class="h"></div><div class="b"><div class="ln w2"></div><div class="ln w2"></div><div class="ln w1"></div></div></div>
         <div class="shot dark"><div class="h"></div><div class="b"><div class="ln w3"></div><div class="ln w1"></div></div></div>
       </div>
-      <div class="foot"><span class="dot"></span> 6 pages · 3 viewports · light + dark · 36 PNGs → site-capture.zip</div>
+      <div class="foot"><span class="dot"></span> 6 states · 3 viewports · light + dark · 36 PNGs → captures.zip</div>
     </div>
   </section>
 
   <section id="what" class="wrap">
     <div class="sec-head reveal">
       <span class="eyebrow">What it does</span>
-      <h2>One job. Every page, every state, captured.</h2>
-      <p>SunSponge crawls a site or expands a map you already have, then drives Playwright to screenshot each page at every viewport and color scheme. The output is clean PNGs, named so you can tell exactly what each one is.</p>
+      <h2>Your built UI. Every state. Shot for the portfolio.</h2>
+      <p>Captur'd takes the HTML/UI you (or your agent) built and a pathway map of its buttons and states, then drives Playwright to screenshot every rested state at each viewport and color scheme. Clean PNGs, named so you can tell exactly what each one is. Built for website designers, UI/UX makers, and game makers.</p>
     </div>
 
     <div class="bento">
       <div class="card c-a reveal">
-        <div class="k">Discover</div>
-        <h3>Crawl it, or hand it a map</h3>
-        <p>Let SunSponge crawl from a URL, read an XML sitemap, or take a pathway map — a Markdown manifest or a <a href="https://github.com/deariencampbell1-sys/rhobear-verifier" style="color:var(--amber)">rhobear-verifier</a> JSON report — and skip blind crawling entirely.</p>
+        <div class="k">Map-driven</div>
+        <h3>It knows what to shoot from your map</h3>
+        <p>Ask your agent to map out the pathways of what it built. Paste that Markdown manifest (or a <a href="https://github.com/deariencampbell1-sys/rhobear-verifier" style="color:var(--amber)">rhobear-verifier</a> JSON report) into Captur'd — the map lists every state, so the run is deterministic and fast. No URLs, no crawling, no waiting an hour.</p>
       </div>
       <div class="card c-b reveal">
         <div class="k">Viewports</div>
         <h3>Desktop, tablet, phone</h3>
-        <p>Every page captured at each width, so the responsive states are in the box too.</p>
+        <p>Every state captured at each width, so the responsive shots are in the box too.</p>
       </div>
       <div class="card c-c reveal">
         <div class="k">Schemes</div>
         <h3>Light and dark</h3>
-        <p>Both color schemes per page, driven through the real browser.</p>
+        <p>Both color schemes per state, driven through the real browser.</p>
       </div>
       <div class="card c-d reveal">
         <div class="k">Named output</div>
@@ -220,17 +218,17 @@
       <div class="card c-e reveal">
         <div class="k">Download</div>
         <h3>One ZIP, yours</h3>
-        <p>Start a job, poll it, pull the ZIP. Local service, your machine.</p>
+        <p>Start a job, watch it, pull the ZIP. Local app, your machine, your files.</p>
       </div>
       <div class="card c-wide reveal">
         <div>
-          <div class="k">No AI — on purpose</div>
-          <h3 style="margin-bottom:12px">Just Playwright, a crawl plan, and PNG output.</h3>
-          <p class="muted">There's no model in the loop, no key to bring, nothing phoning home. SunSponge is a deterministic capture engine: feed it the same site and map, get the same shots. That's what makes it dependable for audits, design reviews, and before/after diffs.</p>
+          <div class="k">No AI · no internet</div>
+          <h3 style="margin-bottom:12px">Just Playwright, your map, and PNG output.</h3>
+          <p class="muted">There's no model in the loop, no key to bring, nothing phoning home. Captur'd is a deterministic desktop capture engine: feed it the same HTML and map, get the same shots. That's what makes it dependable for portfolios, design reviews, and before/after diffs.</p>
         </div>
         <div class="mock" style="box-shadow:none">
-          <div class="foot" style="border-top:none;border-bottom:1px solid var(--line)"><span class="dot"></span> POST /api/rested-captures/jobs</div>
-          <div class="foot" style="color:var(--ink-3)"><span class="dot" style="background:var(--line);box-shadow:none"></span> GET …/{job_id}/download → site-capture.zip</div>
+          <div class="foot" style="border-top:none;border-bottom:1px solid var(--line)"><span class="dot"></span> upload your built HTML + paste the pathway map</div>
+          <div class="foot" style="color:var(--ink-3)"><span class="dot" style="background:var(--line);box-shadow:none"></span> → captures.zip, named by state</div>
         </div>
       </div>
     </div>
@@ -239,13 +237,13 @@
   <section id="how" class="wrap">
     <div class="sec-head reveal">
       <span class="eyebrow">How it works</span>
-      <h2>Four steps. No model, no account.</h2>
+      <h2>Four steps. No URLs, no model, no account.</h2>
     </div>
     <div class="steps reveal">
-      <div class="step"><div class="n">01</div><h3>Point</h3><p>Give it a base URL, an XML sitemap, or a pathway map you already have.</p></div>
-      <div class="step"><div class="n">02</div><h3>Plan</h3><p>It builds the crawl plan and expands every pathway into capture targets.</p></div>
-      <div class="step"><div class="n">03</div><h3>Capture</h3><p>Playwright shoots each page × viewport × scheme to clean PNGs.</p></div>
-      <div class="step"><div class="n">04</div><h3>Download</h3><p>Pull a named ZIP. Diff it, archive it, drop it in a review. You own it.</p></div>
+      <div class="step"><div class="n">01</div><h3>Point</h3><p>Open your built HTML — a local file or folder. Captur'd never touches the internet.</p></div>
+      <div class="step"><div class="n">02</div><h3>Map</h3><p>Paste or upload the pathway map your agent produced — the tree of buttons and states.</p></div>
+      <div class="step"><div class="n">03</div><h3>Capture</h3><p>Playwright drives every state × viewport × scheme to clean PNGs, fast and deterministic.</p></div>
+      <div class="step"><div class="n">04</div><h3>Download</h3><p>Pull a named ZIP. Drop it in a portfolio, a review, or a before/after diff. You own it.</p></div>
     </div>
   </section>
 
@@ -253,7 +251,7 @@
     <div class="sec-head reveal">
       <span class="eyebrow">Open source</span>
       <h2>MIT, runs on your machine, sibling to RHOBEAR Designs.</h2>
-      <p>A FastAPI service and a small static UI over a Playwright capture engine — that's the whole thing. Same deep-navy canvas as Designs, a sun-amber accent instead of red. Clone it, fork it, wire it into your own pipeline. Captures feed straight into a Designs edit or a Reviews pass.</p>
+      <p>A local FastAPI service and a small static UI over a Playwright capture engine — that's the whole thing. Same deep-navy canvas as Designs, a sun-amber accent instead of red. Clone it, fork it, wire it into your own pipeline. Built something in <a href="https://github.com/deariencampbell1-sys/rhobear-designs" style="color:var(--amber)">RHOBEAR Designs</a>? Captur'd shoots it for your portfolio.</p>
     </div>
     <div class="cta reveal" style="margin-top:28px">
       <a class="btn btn-primary" href="https://github.com/deariencampbell1-sys/sunsponge">Clone on GitHub</a>
@@ -265,16 +263,16 @@
     <div class="sec-head reveal">
       <span class="eyebrow">Pricing</span>
       <h2>Free. That's the price.</h2>
-      <p>No trial, no seats, no capture cap. SunSponge is MIT and $0 — the price is zero on purpose. There's no model to pay for because there's no model at all. Run it locally, capture as much as you want, keep every file.</p>
+      <p>No trial, no seats, no capture cap. Captur'd is MIT and $0 — the price is zero on purpose. There's no model to pay for because there's no model at all. Run it locally, capture as much as you want, keep every file.</p>
     </div>
     <div class="price-wrap reveal">
       <div class="price-card">
         <div class="amt">$0<small> / forever</small></div>
         <div class="sub">MIT · no AI · no account</div>
         <ul>
-          <li>Crawl, sitemap, or pathway-map driven capture</li>
+          <li>Map-driven capture of your built HTML — no URLs, no crawling</li>
           <li>Every viewport × light/dark, named PNGs in one ZIP</li>
-          <li>Local FastAPI service — nothing leaves your machine</li>
+          <li>Local desktop app — nothing leaves your machine</li>
           <li>Clone it, fork it, wire it into any pipeline</li>
         </ul>
         <a class="btn btn-primary" href="https://github.com/deariencampbell1-sys/sunsponge">Get it on GitHub</a>
@@ -284,17 +282,17 @@
 
   <section class="close wrap reveal">
     <span class="eyebrow">Start now</span>
-    <h2>Point it at a site. Walk away with the shots.</h2>
-    <p>Crawl plan in, named ZIP out. No model, no lock-in.</p>
+    <h2>Hand it your HTML and the map. Walk away with the shots.</h2>
+    <p>Map in, named ZIP out. Local, deterministic, no lock-in.</p>
     <div class="cta">
-      <a class="btn btn-primary" href="https://github.com/deariencampbell1-sys/sunsponge">Get SunSponge</a>
+      <a class="btn btn-primary" href="https://github.com/deariencampbell1-sys/sunsponge">Get RHOBEAR Captur'd</a>
     </div>
   </section>
 </main>
 
 <footer>
   <div class="wrap foot">
-    <div class="brand"><span class="bear-chip"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="17" cy="18" r="9.5" fill="#F5A524"/><circle cx="47" cy="18" r="9.5" fill="#F5A524"/><circle cx="17" cy="18" r="4" fill="#1a1205"/><circle cx="47" cy="18" r="4" fill="#1a1205"/><circle cx="32" cy="37" r="22" fill="#F5A524"/><ellipse cx="32" cy="43" rx="10.5" ry="8" fill="#1a1205"/><circle cx="24.5" cy="33" r="2.6" fill="#1a1205"/><circle cx="39.5" cy="33" r="2.6" fill="#1a1205"/><ellipse cx="32" cy="40" rx="2.8" ry="2" fill="#F5A524"/></svg></span> SunSponge</div>
+    <div class="brand"><span class="bear-chip"><img class="bear-img" src="assets/rhobear-logo.png" alt="" /></span> RHOBEAR Captur'd</div>
     <div class="eco">
       <a href="https://rhobear.ai">Hub</a>
       <a href="https://reviews.rhobear.ai">Reviews</a>
