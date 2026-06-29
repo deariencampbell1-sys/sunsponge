@@ -54,9 +54,7 @@ function RestedCaptureView() {
   const canRun = !busy && !jobRunning && activeStates > 0 && mapReady && htmlReady && api;
 
   const importSummary = mapReady ? (mapIsJson ? "Verifier map" : "Pathway map") : "No map yet";
-  const shotSummary = total
-    ? total + " shots"
-    : (discoveredPages ? discoveredPages + " states" : viewports.length + "vp · " + schemes.length + " scheme");
+  const shotSummary = total ? total + " shots" : (discoveredPages ? discoveredPages + " states" : activeStates + "/state");
 
   React.useEffect(() => {
     if (!job || !jobRunning || !api) return undefined;
@@ -140,7 +138,7 @@ function RestedCaptureView() {
         </div>
         <div className="capture__summary">
           <span>{importSummary}</span>
-          <span>{activeStates} per run</span>
+          <span>{activeStates} states</span>
           <span>{shotSummary}</span>
         </div>
       </div>
