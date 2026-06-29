@@ -253,6 +253,7 @@ def create_app() -> FastAPI:
         return _ok({
             "job_id": job_id,
             "status": job.get("status"),
+            "message": job.get("message"),  # surface top-level failures (e.g. browser launch) — was dropped
             "total": job.get("total", 0),
             "completed": job.get("completed", 0),
             "failed": job.get("failed", 0),
