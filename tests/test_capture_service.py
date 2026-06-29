@@ -46,6 +46,47 @@ def test_build_capture_plan_requires_a_map():
         raise AssertionError("expected a pathway-map-required error")
 
 
+def test_build_capture_plan_requires_base_url():
+    # A map with nowhere to point is useless — base_url is mandatory.
+    raw = SAMPLE_MANIFEST.read_text(encoding="utf-8")
+    try:
+        build_capture_plan({"pathway_manifest": raw, "viewports": ["desktop"]})
+    except RestedCaptureError as exc:
+        assert "base_url" in str(exc)
+    else:
+        raise AssertionError("expected base_url-required error")
+
+
+def test_build_capture_plan_rejects_multiple_map_sources():
+    # Exactly one source of truth for the map — ambiguity is a caller bug.
+    raw = SAMPLE_MANIFEST.read_text(encoding="utf-8")
+    try:
+        build_capture_plan({
+            "pathway_manifest": raw,
+            "manifest_path": str(SAMPLE_MANIFEST),
+            "base_url": "https://example.com",
+        })
+    except RestedCaptureError as exc:
+        assert "exactly one" in str(exc)
+    else:
+        raise AssertionError("expected single-map-source error")
+
+
+def test_build_capture_plan_rejects_stale_url_input():
+    # Post-refocus, any URL/crawl/sitemap key is a stale caller — fail fast.
+    raw = SAMPLE_MANIFEST.read_text(encoding="utf-8")
+    try:
+        build_capture_plan({
+            "pathway_manifest": raw,
+            "base_url": "https://example.com",
+            "sitemap": "https://example.com/sitemap.xml",
+        })
+    except RestedCaptureError as exc:
+        assert "map-driven only" in str(exc)
+    else:
+        raise AssertionError("expected stale-URL rejection")
+
+
 def test_build_capture_plan_expands_state_matrix():
     # 3 pathways in the fixture × 2 viewports × 2 schemes = 12 capture targets.
     urls, targets, settings = build_capture_plan({

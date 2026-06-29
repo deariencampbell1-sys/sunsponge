@@ -246,9 +246,43 @@ def build_capture_plan(payload: dict[str, Any]) -> tuple[list[str], list[Capture
     ).strip()
     map_text = str(payload.get("map_text") or payload.get("pathway_map_json") or "").strip()
 
-    if not (manifest_path or map_path or manifest_text or map_text):
+    map_inputs = [
+        ("manifest_path", manifest_path),
+        ("map_path", map_path),
+        ("pathway_manifest", manifest_text),
+        ("map_text", map_text),
+    ]
+    supplied = [name for name, value in map_inputs if value]
+    if not supplied:
         raise RestedCaptureError(
             "a pathway map is required — paste the manifest markdown (or upload it)"
+        )
+    if len(supplied) > 1:
+        # The map has exactly one source of truth; ambiguous input is a caller
+        # bug, not something to silently pick a winner for.
+        raise RestedCaptureError(
+            "supply exactly one pathway map — got " + ", ".join(supplied)
+        )
+
+    # Captur'd is map-driven only. Any URL/crawl/sitemap key is a stale caller
+    # from before the refocus; fail fast instead of silently ignoring it.
+    stale_keys = [
+        key
+        for key in ("url", "urls", "start_url", "sitemap", "sitemap_url", "crawl", "crawl_depth")
+        if payload.get(key)
+    ]
+    if stale_keys:
+        raise RestedCaptureError(
+            "Captur'd is map-driven only; remove URL/crawl/sitemap input: "
+            + ", ".join(stale_keys)
+        )
+
+    # base_url anchors every pathway to the built HTML; without it there is
+    # nowhere to point the capture.
+    base_url = str(payload.get("base_url") or "").strip()
+    if not base_url:
+        raise RestedCaptureError(
+            "base_url is required — point Captur'd at the built HTML (a file/folder or file:// URL)"
         )
 
     viewport_ids = payload.get("viewports") or list(DEFAULT_VIEWPORTS)
@@ -275,7 +309,6 @@ def build_capture_plan(payload: dict[str, Any]) -> tuple[list[str], list[Capture
         manifest_text=manifest_text or None,
         map_text=map_text or None,
     )
-    base_url = str(payload.get("base_url") or "").strip()
     urls, descriptors = plan_targets_from_map(
         pathway_map,
         base_url=base_url,
