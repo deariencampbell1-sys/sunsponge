@@ -9,12 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import gzip
-import ipaddress
 import json
 import os
 import re
 import shutil
-import socket
 import threading
 import time
 import uuid
@@ -308,60 +306,6 @@ def _is_same_site(value: str, allowed_site_keys: set[str]) -> bool:
 
 def normalize_url(value: str) -> str:
     return _canonical_page_url(value)
-
-
-# --------------------------------------------------------------------------
-# SSRF / local-access hardening for the NETWORK-FACING service.
-# Enforced only by the HTTP manager (start()); the CLI (run_capture) is
-# unrestricted by design. Best-effort: resolve the host and refuse any
-# non-public address (loopback / private / link-local / metadata / reserved).
-# The high-value target — cloud metadata at 169.254.169.254 — is link-local and
-# blocked here. DNS rebinding between check and fetch is a known residual risk.
-# --------------------------------------------------------------------------
-_INTERNAL_HOSTNAMES = {"localhost", "metadata", "metadata.google.internal"}
-
-
-def _assert_public_url(value: str) -> None:
-    parsed = urlparse(value if "://" in value else "https://" + value)
-    scheme = (parsed.scheme or "").lower()
-    if scheme not in {"http", "https"}:
-        raise RestedCaptureError(f"refusing non-http(s) URL over the API: {value!r}")
-    host = (parsed.hostname or "").strip()
-    if not host:
-        raise RestedCaptureError(f"invalid URL: {value!r}")
-    if host.lower() in _INTERNAL_HOSTNAMES:
-        raise RestedCaptureError(f"refusing to capture internal host: {host}")
-    try:
-        infos = socket.getaddrinfo(host, parsed.port or (443 if scheme == "https" else 80))
-    except OSError as exc:
-        raise RestedCaptureError(f"could not resolve host {host!r}: {exc}") from exc
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
-                or ip.is_multicast or ip.is_unspecified):
-            raise RestedCaptureError(
-                f"refusing to capture non-public address {ip} (host {host!r})")
-
-
-def _assert_service_safe(payload: dict[str, Any]) -> None:
-    """Network-facing hardening (start()): no local FS access, no arbitrary
-    write target, no SSRF. CLI callers (run_capture) bypass this entirely."""
-    if payload.get("local") or str(payload.get("local_path") or "").strip():
-        raise RestedCaptureError("local/file capture is not available over the API")
-    if str(payload.get("export_dir") or "").strip():
-        raise RestedCaptureError("export_dir is not available over the API")
-    raw = payload.get("urls") or []
-    if isinstance(raw, str):
-        raw = re.split(r"[\r\n,]+", raw)
-    candidates = [str(u).strip() for u in (raw if isinstance(raw, list) else [])]
-    candidates += [
-        str(payload.get("sitemap_url") or "").strip(),
-        str(payload.get("crawl_url") or "").strip(),
-        str(payload.get("base_url") or "").strip(),
-    ]
-    for u in candidates:
-        if u:
-            _assert_public_url(u)
 
 
 def _is_valid_user_url(value: str) -> bool:
@@ -1268,7 +1212,6 @@ class RestedCaptureManager:
         self._jobs: dict[str, dict[str, Any]] = {}
 
     def start(self, payload: dict[str, Any]) -> dict[str, Any]:
-        _assert_service_safe(payload)  # SSRF + no file:// / export_dir over the network (CLI bypasses)
         urls, targets, settings = build_capture_plan(payload)
         job_id = uuid.uuid4().hex[:12]
         job_name = _slug(str(payload.get("name") or "") or _job_name(), _job_name())
