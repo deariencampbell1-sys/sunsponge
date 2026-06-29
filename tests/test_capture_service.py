@@ -81,6 +81,27 @@ def test_build_capture_plan_accepts_pasted_manifest():
     assert len(targets) == 3
 
 
+def test_selector_column_flows_to_capture_target():
+    # A `selector` column in the map must reach the CaptureTarget so the engine
+    # can click it to the rested state (the difference between distinct shots and
+    # N copies of the same page).
+    manifest = (
+        "## Pathways Table\n\n"
+        "| id | selector | trigger | status |\n|---|---|---|---|\n"
+        "| default-view |  | initial load | WIRED |\n"
+        "| ai-open | [data-action=\"ai-toggle\"] | click AI | WIRED |\n"
+    )
+    _urls, targets, _settings = build_capture_plan({
+        "pathway_manifest": manifest,
+        "base_url": "https://example.com",
+        "viewports": ["desktop"],
+        "schemes": ["light"],
+    })
+    by_id = {t.pathway_id: t for t in targets}
+    assert by_id["ai-open"].trigger_selector == '[data-action="ai-toggle"]'
+    assert by_id["default-view"].trigger_selector == ""
+
+
 def test_api_registers_capture_routes():
     paths = {route.path for route in sunsponge_app.app.routes if hasattr(route, "path")}
     assert "/api/rested-captures/jobs" in paths

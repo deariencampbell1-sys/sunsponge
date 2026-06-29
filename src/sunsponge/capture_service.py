@@ -78,6 +78,7 @@ class CaptureTarget:
     pathway_id: str = ""
     pathway_status: str = ""
     pathway_trigger: str = ""
+    trigger_selector: str = ""  # CSS selector to click after load, to reach the rested state
 
     @property
     def state_id(self) -> str:
@@ -312,6 +313,7 @@ def build_capture_plan(payload: dict[str, Any]) -> tuple[list[str], list[Capture
                 pathway_id=desc["pathway_id"],
                 pathway_status=desc["pathway_status"],
                 pathway_trigger=desc["pathway_trigger"],
+                trigger_selector=desc.get("selector", ""),
             )
         )
     settings = {
@@ -369,6 +371,30 @@ async def _settle_page(page: Any, wait_ms: int) -> None:
     await page.wait_for_timeout(wait_ms)
 
 
+async def _apply_trigger(page: Any, selector: str, wait_ms: int) -> bool:
+    """Click the pathway's trigger to reach its rested state, then settle.
+
+    Returns True if the trigger fired. A missing/invalid selector is not an
+    error — we just shoot the loaded state. This is what turns a map of buttons
+    into distinct rested-state shots instead of N copies of the same page.
+    """
+    sel = (selector or "").strip()
+    if not sel:
+        return False
+    try:
+        el = await page.query_selector(sel)
+        if el is None:
+            return False
+        await el.scroll_into_view_if_needed(timeout=2000)
+        await el.click(timeout=4000)
+        # let the resulting state paint/animate in, then re-settle to rest
+        await page.wait_for_timeout(max(250, min(wait_ms, 1200)))
+        await _settle_page(page, wait_ms)
+        return True
+    except Exception:
+        return False
+
+
 def _target_context_key(target: CaptureTarget) -> tuple[str, str, int, int, str]:
     parsed = urlparse(target.url)
     if parsed.scheme == "file":
@@ -394,6 +420,10 @@ async def _capture_one(context: Any, target: CaptureTarget, settings: dict[str, 
             except Exception:
                 pass
             await _settle_page(page, settings["wait_ms"])
+            # Drive to the rested state the pathway describes (open the menu /
+            # modal / panel) before shooting — otherwise every pathway on a
+            # single-view app collapses to the same screenshot.
+            trigger_fired = await _apply_trigger(page, target.trigger_selector, settings["wait_ms"])
             screenshot_kwargs: dict[str, Any] = {
                 "path": str(path),
                 "type": settings["format"],
@@ -413,6 +443,8 @@ async def _capture_one(context: Any, target: CaptureTarget, settings: dict[str, 
                 "height": target.height,
                 "pathway_id": target.pathway_id or None,
                 "pathway_status": target.pathway_status or None,
+                "trigger_selector": target.trigger_selector or None,
+                "trigger_fired": trigger_fired,
                 "status": "ok",
                 "file": path.name,
                 "bytes": stat.st_size,

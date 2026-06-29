@@ -303,7 +303,8 @@ def _extract_pathways(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 pathways.append({
                     "id": pid,
                     "location": location,
-                    "trigger": (row_map.get("trigger") or row_map.get("selector") or row_map.get("href") or "").strip(),
+                    "trigger": (row_map.get("trigger") or row_map.get("href") or "").strip(),
+                    "selector": (row_map.get("selector") or row_map.get("css") or row_map.get("css selector") or "").strip().strip("`"),
                     "declaredIntent": (
                         row_map.get("declared intent")
                         or row_map.get("declared_intent")
@@ -570,6 +571,7 @@ def plan_targets_from_map(
                     "pathway_id": str(pathway.get("id") or f"pathway-{index}"),
                     "pathway_status": status,
                     "pathway_trigger": trigger,
+                    "selector": str(pathway.get("selector") or "").strip(),
                     "pathway_location": str(pathway.get("location") or ""),
                     "pathway_handler": str(pathway.get("handler") or ""),
                     "pathway_downstream": str(pathway.get("downstreamCall") or pathway.get("downstream_call") or ""),
