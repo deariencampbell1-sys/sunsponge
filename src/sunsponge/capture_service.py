@@ -821,7 +821,10 @@ def build_capture_plan(payload: dict[str, Any]) -> tuple[list[str], list[Capture
 
     manifest_path = str(payload.get("manifest_path") or payload.get("manifest") or "").strip()
     map_path = str(payload.get("map_path") or payload.get("map") or "").strip()
-    map_enabled = bool(manifest_path or map_path)
+    # Pasted/uploaded map content — the primary desktop path (no file on disk needed).
+    manifest_text = str(payload.get("pathway_manifest") or payload.get("manifest_text") or payload.get("pathway_map") or "").strip()
+    map_text = str(payload.get("map_text") or payload.get("pathway_map_json") or "").strip()
+    map_enabled = bool(manifest_path or map_path or manifest_text or map_text)
 
     urls = [str(item).strip() for item in raw_urls if str(item).strip()]
     # Reject obvious non-URLs up front (e.g. "not-a-url") so we don't queue a
@@ -864,6 +867,8 @@ def build_capture_plan(payload: dict[str, Any]) -> tuple[list[str], list[Capture
         pathway_map = load_pathway_map(
             manifest_path=manifest_path or None,
             map_path=map_path or None,
+            manifest_text=manifest_text or None,
+            map_text=map_text or None,
         )
         base_url = str(payload.get("base_url") or crawl_url or (urls[0] if urls else "")).strip()
         urls, descriptors = plan_targets_from_map(

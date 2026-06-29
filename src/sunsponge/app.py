@@ -118,6 +118,8 @@ class CaptureRequestV1(BaseModel):
 
     url: str | list[str] | None = None
     sitemap: str | None = None
+    pathway_map: str | None = None  # pasted pathway-manifest markdown — the primary path
+    base_url: str | None = None     # base/location of the built HTML the map refers to
     viewports: list[str] | None = None
     color_schemes: list[str] | None = None
     workspace_id: str | None = None
@@ -142,18 +144,24 @@ def _build_v1_payload(body: CaptureRequestV1) -> dict[str, Any]:
     elif isinstance(urls_field, str) and urls_field.strip():
         urls_list = [urls_field.strip()]
     sitemap = (body.sitemap or "").strip()
+    pathway_map = (body.pathway_map or "").strip()
     has_url = bool(urls_list)
     has_sitemap = bool(sitemap)
-    if not has_url and not has_sitemap:
-        raise RestedCaptureError("provide 'url' or 'sitemap'")
-    if has_url and has_sitemap:
-        raise RestedCaptureError("provide 'url' or 'sitemap', not both")
 
     payload: dict[str, Any] = {"workspace_id": workspace_id}
-    if has_sitemap:
+    if pathway_map:
+        # Primary path: a pasted pathway manifest drives the capture (no URL needed).
+        payload["pathway_manifest"] = pathway_map
+        if (body.base_url or "").strip():
+            payload["base_url"] = body.base_url.strip()
+    elif has_url and has_sitemap:
+        raise RestedCaptureError("provide 'url' or 'sitemap', not both")
+    elif has_sitemap:
         payload["sitemap_url"] = sitemap
-    else:
+    elif has_url:
         payload["urls"] = urls_list
+    else:
+        raise RestedCaptureError("provide a pathway map (paste it), or a url/sitemap")
     if body.viewports is not None:
         payload["viewports"] = body.viewports
     if body.color_schemes is not None:
