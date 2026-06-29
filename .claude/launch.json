@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "capturd",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-c", "import sys; sys.path.insert(0, 'src'); import uvicorn; uvicorn.run('sunsponge.app:app', host='127.0.0.1', port=8787)"],
+      "port": 8787
+    }
+  ]
+}

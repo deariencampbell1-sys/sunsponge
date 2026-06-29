@@ -80,16 +80,15 @@ def _shot_image_ref(base: str, job_id: str, file: str) -> str:
 
 
 class RestedCaptureRequest(BaseModel):
-    # Map-driven only, paste/upload over the wire. The map is pasted text
-    # (markdown via pathway_manifest, verifier JSON via map_text) and base_url is
-    # where the user's built HTML lives. The HTTP surface deliberately does NOT
-    # accept local file paths or an export directory: those would let a network
-    # caller read arbitrary files (LFI) or write anywhere. Path-based map loading
-    # and folder export remain available to the local CLI only.
-    model_config = ConfigDict(extra="forbid")
-
+    # Map-driven only. Paste/upload the pathway map (markdown via pathway_manifest,
+    # verifier JSON via map_text) or pass a file path (CLI convenience). base_url is
+    # where the user's built HTML lives (a local file/folder or file:// URL).
+    # Captur'd is a LOCAL desktop tool: reading the user's own local files and
+    # exporting shots to a local folder are CORE features, never threats.
     pathway_manifest: str | None = None
     map_text: str | None = None
+    manifest_path: str | None = None
+    map_path: str | None = None
     base_url: str | None = None
     viewports: list[str] = Field(default_factory=lambda: ["desktop", "tablet", "mobile"])
     schemes: list[str] = Field(default_factory=lambda: ["light", "dark"])
@@ -101,6 +100,8 @@ class RestedCaptureRequest(BaseModel):
     retries: int = 1
     retry_timeout_ms: int = 60000
     jpeg_quality: int = 88
+    export_dir: str | None = None
+    export_mode: Literal["zip", "folder"] = "zip"
     name: str | None = None
 
 

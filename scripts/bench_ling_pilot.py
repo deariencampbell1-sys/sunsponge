@@ -32,40 +32,67 @@ MODEL = "inclusionai/ling-2.6-flash"
 ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 
 MAP_SYSTEM = (
-    "You are a UI cartographer for a screenshot tool. You are given the LIVE "
-    "rendered DOM of a built product. Find the distinct RESTED STATES a user can "
-    "reach by clicking ONE control (open a panel/modal, switch mode, open a tab) "
-    "plus the default view.\n"
-    "CRITICAL: the selector must point at the CLICKABLE CONTROL the user presses "
-    "(a <button>/<a>/element with data-action, data-testid, id, or onclick) — "
-    "NOT the panel/modal that appears afterward. Copy the attribute/value "
-    "VERBATIM from the DOM; never invent attributes. Only include a row if you "
-    "can see the real clickable element. The default/landing state has an EMPTY "
-    "selector.\n\n"
+    "You are a UI cartographer for a screenshot tool. You are given a LIST of the "
+    "live clickable controls of a built product (each as `selector=... text=...`). "
+    "Pick the controls that lead to DISTINCT RESTED STATES worth a portfolio shot "
+    "— primary views/tabs (Hub, Skills, Learn, Catalog, Settings...), mode/theme "
+    "switches, and panels/modals — plus the default view. Skip pure external "
+    "links (social icons), duplicates, and trivial buttons.\n"
+    "Use each selector EXACTLY as given; never invent one. The default/landing "
+    "state has an EMPTY selector.\n\n"
     "Return ONLY a markdown pathway manifest, no prose, EXACTLY this shape:\n\n"
     "## Pathways Table\n\n"
     "| id | selector | trigger | status |\n|---|---|---|---|\n"
     "| default-view |  | initial load | WIRED |\n"
-    "| ai-open | [data-action=\"ai-toggle\"] | click AI button | WIRED |\n\n"
-    "6-14 rows, unique kebab-case ids, selectors copied exactly from the DOM."
+    "| skills-view | [data-view=\"skills\"] | open Skills | WIRED |\n\n"
+    "6-16 rows, unique kebab-case ids, selectors copied exactly from the list."
 )
 
 
-def rendered_dom(url: str) -> str | None:
-    """Load the served product and return its LIVE DOM, so Ling maps selectors
-    that actually exist (not guesses from source)."""
+_EXTRACT_JS = r"""() => {
+  const sel = (el) => {
+    for (const a of ['data-action','data-view','data-room','data-tab','data-testid','data-rail-pane','data-mode','data-house','data-theme']) {
+      const v = el.getAttribute(a); if (v) return `[${a}="${v}"]`;
+    }
+    if (el.id) return '#' + CSS.escape(el.id);
+    const cls = (el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className);
+    if (typeof cls === 'string' && cls.trim()) {
+      const c = cls.trim().split(/\s+/).filter(x=>!/^(is-|has-)/.test(x))[0];
+      if (c) return el.tagName.toLowerCase() + '.' + CSS.escape(c);
+    }
+    return el.tagName.toLowerCase();
+  };
+  const out = [], seen = new Set();
+  const els = document.querySelectorAll('button,[role="button"],a[href],[data-action],[data-view],[data-room],[data-tab],[data-house],[data-theme],[data-testid],[onclick],nav li,[role="tab"]');
+  for (const el of els) {
+    const r = el.getBoundingClientRect();
+    if (r.width < 6 || r.height < 6) continue;
+    const s = sel(el);
+    const txt = (el.textContent||'').trim().replace(/\s+/g,' ').slice(0,40);
+    const key = s + '|' + txt;
+    if (seen.has(key)) continue; seen.add(key);
+    out.push(`selector=${s}  text="${txt}"`);
+    if (out.length >= 120) break;
+  }
+  return out.join('\n');
+}"""
+
+
+def extract_controls(url: str) -> str | None:
+    """Return a compact list of the LIVE clickable controls (selector + label),
+    so Ling maps real, existing selectors regardless of how big the app is."""
     try:
         from playwright.sync_api import sync_playwright
         with sync_playwright() as p:
             b = p.chromium.launch()
             pg = b.new_page(viewport={"width": 1440, "height": 1000})
-            pg.goto(url, wait_until="networkidle", timeout=30000)
-            pg.wait_for_timeout(2500)
-            html = pg.content()
+            pg.goto(url, wait_until="domcontentloaded", timeout=45000)
+            pg.wait_for_timeout(3500)
+            controls = pg.evaluate(_EXTRACT_JS)
             b.close()
-            return html
+            return controls
     except Exception as e:
-        print(f"   (rendered-DOM fetch failed: {e}; falling back to source file)")
+        print(f"   (controls extract failed: {e})")
         return None
 
 
@@ -114,9 +141,11 @@ def call_ling(api_key: str, html: str) -> tuple[str, float, dict]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--name", required=True)
-    ap.add_argument("--subject-html", required=True, help="HTML file Ling maps")
+    ap.add_argument("--subject-html", default="", help="fallback HTML file if live control extraction fails")
     ap.add_argument("--base-url", required=True, help="where the built product is served")
     ap.add_argument("--out", default=str(ROOT / "out" / "bench"))
+    ap.add_argument("--viewports", default="desktop,tablet,mobile")
+    ap.add_argument("--schemes", default="light,dark")
     args = ap.parse_args()
 
     key = os.environ.get("OPENROUTER_API_KEY")
@@ -124,8 +153,11 @@ def main() -> int:
         print("OPENROUTER_API_KEY not set", file=sys.stderr)
         return 2
 
-    # Map the LIVE product DOM (selectors that exist), fall back to source file.
-    html = rendered_dom(args.base_url) or Path(args.subject_html).read_text(encoding="utf-8", errors="ignore")
+    # Map the LIVE product's clickable controls (selectors that exist), so Ling
+    # never guesses. Fall back to the source markup only if extraction fails.
+    html = extract_controls(args.base_url)
+    if not html:
+        html = Path(args.subject_html).read_text(encoding="utf-8", errors="ignore") if args.subject_html else ""
     shots_dir = Path(args.out) / "shots"
     if shots_dir.exists():
         import shutil
@@ -155,8 +187,8 @@ def main() -> int:
     payload = {
         "pathway_manifest": manifest,
         "base_url": args.base_url,
-        "viewports": ["desktop", "tablet", "mobile"],
-        "schemes": ["light", "dark"],
+        "viewports": [v.strip() for v in args.viewports.split(",") if v.strip()],
+        "schemes": [s.strip() for s in args.schemes.split(",") if s.strip()],
         "format": "png",
         "full_page": True,
         "concurrency": 4,

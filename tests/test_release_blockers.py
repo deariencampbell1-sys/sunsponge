@@ -77,17 +77,12 @@ def test_build_capture_plan_rejects_missing_map():
     assert "/nope/map.json" not in message
 
 
-def _forbidden_field(response, field: str) -> bool:
-    detail = response.json().get("detail") or []
-    return any(
-        entry.get("type") == "extra_forbidden" and entry.get("loc", [])[-1:] == [field]
-        for entry in detail
-    )
+def test_api_returns_400_for_bad_manifest_path(caplog):
+    """End-to-end: POST a bad manifest_path, get 400, no traceback in the log.
 
-
-def test_api_rejects_manifest_path_over_http(caplog):
-    """The HTTP surface is map-only: a manifest_path (LFI vector) is refused at
-    validation (422), never read — and no traceback leaks."""
+    Captur'd is a local desktop tool — pointing it at a local map file is a
+    supported (CLI-convenience) input; a *missing* one is a clean 400, not a 500.
+    """
     import logging
 
     caplog.set_level(logging.ERROR, logger="sunsponge.app")
@@ -99,10 +94,14 @@ def test_api_rejects_manifest_path_over_http(caplog):
             json={"manifest_path": "/nope/manifest.md", "base_url": "https://example.com"},
         )
 
-    assert response.status_code == 422, response.text
-    assert _forbidden_field(response, "manifest_path")
+    assert response.status_code == 400, response.text
+    body = response.json()
+    assert body["ok"] is False
+    assert "manifest_path" in body["error"]
+    # No absolute server path leaked in the body.
+    assert "/nope/manifest.md" not in body["error"]
 
-    # The path is rejected before any filesystem access — no traceback at all.
+    # And no raw Python traceback for FileNotFoundError or anything related.
     leaked = [
         record for record in caplog.records
         if "FileNotFoundError" in record.getMessage()
@@ -112,7 +111,7 @@ def test_api_rejects_manifest_path_over_http(caplog):
     assert leaked == [], f"unexpected error log records: {[r.getMessage() for r in leaked]}"
 
 
-def test_api_rejects_map_path_over_http(caplog):
+def test_api_returns_400_for_bad_map_path(caplog):
     import logging
 
     caplog.set_level(logging.ERROR, logger="sunsponge.app")
@@ -124,8 +123,11 @@ def test_api_rejects_map_path_over_http(caplog):
             json={"map_path": "/nope/map.json", "base_url": "https://example.com"},
         )
 
-    assert response.status_code == 422, response.text
-    assert _forbidden_field(response, "map_path")
+    assert response.status_code == 400, response.text
+    body = response.json()
+    assert body["ok"] is False
+    assert "map_path" in body["error"]
+    assert "/nope/map.json" not in body["error"]
 
     leaked = [
         record for record in caplog.records
@@ -136,20 +138,21 @@ def test_api_rejects_map_path_over_http(caplog):
     assert leaked == [], f"unexpected error log records: {[r.getMessage() for r in leaked]}"
 
 
-def test_api_rejects_export_dir_over_http():
-    """An arbitrary export_dir (write vector) is refused at validation too."""
+def test_api_returns_400_for_directory_as_manifest_path(caplog):
+    """A path that exists but is a directory must also be rejected (not 500)."""
+    import logging
+
+    caplog.set_level(logging.ERROR, logger="sunsponge.app")
+
     with TestClient(sunsponge_app.app) as client:
         response = client.post(
             "/api/rested-captures/jobs",
-            json={
-                "pathway_manifest": "## Pathways Table\n\n| id | status |\n|---|---|\n| home | WIRED |\n",
-                "base_url": "https://example.com",
-                "export_dir": "/tmp/anywhere",
-            },
+            json={"manifest_path": str(FIXTURES), "base_url": "https://example.com"},
         )
 
-    assert response.status_code == 422, response.text
-    assert _forbidden_field(response, "export_dir")
+    assert response.status_code == 400, response.text
+    body = response.json()
+    assert "manifest_path" in body["error"]
 
 
 # ---------------------------------------------------------------------------
@@ -232,7 +235,7 @@ def test_api_results_row_has_pathway_fields_for_map_run(monkeypatch, tmp_path):
         map_response = client.post(
             "/api/rested-captures/jobs",
             json={
-                "pathway_manifest": (FIXTURES / "pathway-manifest-sample.md").read_text(encoding="utf-8"),
+                "manifest_path": str(FIXTURES / "pathway-manifest-sample.md"),
                 "base_url": "https://example.com",
             },
         )
