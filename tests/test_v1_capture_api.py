@@ -152,6 +152,30 @@ def test_post_returns_503_when_token_not_configured(unset_token, fake_manager):
     assert fake_manager.last_payload is None  # never reached the engine
 
 
+def test_get_surfaces_job_message(configured_token, monkeypatch):
+    # A job that fails before producing any per-shot results must not come back
+    # blank — the top-level message has to reach the contract response.
+    class MessageManager:
+        def get(self, job_id):
+            assert job_id == "boom"
+            return {
+                "status": "failed",
+                "message": "Playwright is not installed",
+                "total": 0,
+                "completed": 0,
+                "failed": 0,
+                "results": [],
+            }
+
+    monkeypatch.setattr(sunsponge_app, "_CAPTURE_MANAGER", MessageManager())
+    with TestClient(sunsponge_app.app) as client:
+        resp = client.get("/v1/capture/boom", headers={"Authorization": f"Bearer {TOKEN}"})
+    assert resp.status_code == 200, resp.text
+    data = resp.json()["data"]
+    assert data["status"] == "failed"
+    assert data["message"] == "Playwright is not installed"
+
+
 def test_post_rejects_missing_bearer_token(configured_token, fake_manager):
     with TestClient(sunsponge_app.app) as client:
         resp = client.post("/v1/capture", json=_capture_body(workspace_id="ws"))

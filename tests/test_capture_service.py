@@ -143,6 +143,18 @@ def test_selector_column_flows_to_capture_target():
     assert by_id["default-view"].trigger_selector == ""
 
 
+def test_http_model_rejects_local_path_inputs():
+    # The network surface must not accept file paths (LFI) or an export dir
+    # (arbitrary write) — only pasted maps. extra='forbid' makes that a 422.
+    raw = SAMPLE_MANIFEST.read_text(encoding="utf-8")
+    with TestClient(sunsponge_app.app) as client:
+        for forbidden in ({"manifest_path": "/etc/passwd"}, {"map_path": "C:/secret"}, {"export_dir": "/tmp/out"}):
+            body = {"pathway_manifest": raw, "base_url": "https://example.com"}
+            body.update(forbidden)
+            response = client.post("/api/rested-captures/jobs", json=body)
+            assert response.status_code == 422, f"{forbidden} → {response.status_code}: {response.text}"
+
+
 def test_api_registers_capture_routes():
     paths = {route.path for route in sunsponge_app.app.routes if hasattr(route, "path")}
     assert "/api/rested-captures/jobs" in paths
