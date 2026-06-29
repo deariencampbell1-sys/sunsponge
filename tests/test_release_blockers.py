@@ -1,17 +1,17 @@
-"""Regression tests for the three release blockers called out in
-``reports/pressure-sunsponge.md``:
+"""Regression tests for the release blockers called out in
+``reports/pressure-sunsponge.md``, updated for the map-only desktop model:
 
-1. Bad ``manifest_path`` / ``map_path`` must return HTTP 400 (not 500 + traceback).
-2. ``{"urls": ["not-a-url"]}`` must be rejected with HTTP 400 before queueing.
-3. Each ``results[]`` row must carry ``pathway_id`` + ``pathway_status``
-   (both ``null`` for plain-URL captures).
+1. Bad ``manifest_path`` / ``map_path`` must return HTTP 400 (not 500 + traceback)
+   and must never leak the offending server path.
+2. A request with no pathway map must be rejected with HTTP 400 before queueing
+   (Captur'd is map-driven only — there is no URL/sitemap/crawl input).
+3. Each ``results[]`` row must carry ``pathway_id`` + ``pathway_status`` from the
+   map that drove the run.
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -152,107 +152,25 @@ def test_api_returns_400_for_directory_as_manifest_path(caplog):
 
 
 # ---------------------------------------------------------------------------
-# Fix 2 — URL input validation
+# Fix 2 — a request with no map is rejected (no URL/sitemap/crawl fallback)
 # ---------------------------------------------------------------------------
 
 
-def test_build_capture_plan_rejects_not_a_url():
+def test_build_capture_plan_rejects_no_map():
     with pytest.raises(RestedCaptureError) as exc_info:
-        build_capture_plan({"urls": ["not-a-url"]})
+        build_capture_plan({"viewports": ["desktop"], "schemes": ["light"]})
 
-    message = str(exc_info.value)
-    assert "not-a-url" in message
-    assert "invalid URL" in message
+    assert "pathway map" in str(exc_info.value)
 
 
-def test_build_capture_plan_still_accepts_bare_host():
-    """Existing behavior: bare hosts (e.g. 'example.com') are coerced to https."""
-    urls, targets, _settings = build_capture_plan({
-        "urls": ["example.com"],
-        "viewports": ["desktop"],
-        "schemes": ["light"],
-    })
-    assert urls == ["https://example.com/"]
-    assert len(targets) == 1
-
-
-def test_build_capture_plan_still_accepts_full_url():
-    urls, targets, _settings = build_capture_plan({
-        "urls": ["https://example.com/"],
-        "viewports": ["desktop"],
-        "schemes": ["light"],
-    })
-    assert urls == ["https://example.com/"]
-
-
-def test_build_capture_plan_empty_list_still_uses_existing_error():
-    """The empty-list behavior must not change."""
-    with pytest.raises(RestedCaptureError) as exc_info:
-        build_capture_plan({"urls": [""]})
-
-    assert str(exc_info.value) == "add at least one URL"
-
-
-def test_build_capture_plan_rejects_only_empty_string():
-    with pytest.raises(RestedCaptureError) as exc_info:
-        build_capture_plan({"urls": ["", "  "]})
-
-    assert str(exc_info.value) == "add at least one URL"
-
-
-def test_api_returns_400_for_not_a_url():
+def test_api_returns_400_when_no_map():
     with TestClient(sunsponge_app.app) as client:
-        response = client.post(
-            "/api/rested-captures/jobs",
-            json={"urls": ["not-a-url"]},
-        )
+        response = client.post("/api/rested-captures/jobs", json={"base_url": "https://example.com"})
 
     assert response.status_code == 400, response.text
     body = response.json()
     assert body["ok"] is False
-    assert "not-a-url" in body["error"]
-
-
-def test_api_still_queues_valid_url(monkeypatch):
-    """A valid URL must still produce a queued job (the validation must not
-    become a blanket reject)."""
-
-    class FakeManager:
-        def __init__(self) -> None:
-            self.last_payload: dict[str, Any] | None = None
-
-        def start(self, payload):
-            self.last_payload = payload
-            return {"ok": True, "job_id": "fake-job", "status": "queued", "payload": payload}
-
-    fake = FakeManager()
-    monkeypatch.setattr(sunsponge_app, "_CAPTURE_MANAGER", fake)
-
-    with TestClient(sunsponge_app.app) as client:
-        response = client.post(
-            "/api/rested-captures/jobs",
-            json={"urls": ["https://example.com/"]},
-        )
-
-    assert response.status_code == 200, response.text
-    assert response.json()["job_id"] == "fake-job"
-    # The exact payload has many default fields populated; we only care that
-    # the URL survived normalization and the validation step let it through.
-    assert fake.last_payload is not None
-    assert fake.last_payload.get("urls") == ["https://example.com/"]
-
-
-def test_api_still_rejects_empty_list():
-    with TestClient(sunsponge_app.app) as client:
-        response = client.post(
-            "/api/rested-captures/jobs",
-            json={"urls": [""]},
-        )
-
-    assert response.status_code == 400, response.text
-    body = response.json()
-    assert body["ok"] is False
-    assert body["error"] == "add at least one URL"
+    assert "pathway map" in body["error"]
 
 
 # ---------------------------------------------------------------------------
@@ -276,28 +194,10 @@ def test_capture_plan_targets_have_pathway_metadata_for_map_run():
     assert by_pid["catalog-search"].pathway_status == "UNWIRED"
 
 
-def test_capture_plan_targets_have_empty_pathway_for_plain_url_run():
-    _urls, targets, _settings = build_capture_plan({
-        "urls": ["https://example.com/"],
-        "viewports": ["desktop"],
-        "schemes": ["light"],
-    })
-
-    assert len(targets) == 1
-    assert targets[0].pathway_id == ""
-    assert targets[0].pathway_status == ""
-
-
 def test_api_results_row_has_pathway_fields_for_map_run(monkeypatch, tmp_path):
     """End-to-end: a map-mode job's results[] row carries pathway_id +
-    pathway_status (non-null), and a plain-URL job's results[] row carries
-    both as null."""
+    pathway_status (non-null) alongside the existing capture fields."""
     from sunsponge import capture_service
-
-    # Capture into a known dir so the job is fully self-contained.
-    work_dir = tmp_path / "cap"
-    shots_dir = work_dir / "shots"
-    shots_dir.mkdir(parents=True)
 
     fake_map_results = [
         {
@@ -316,28 +216,11 @@ def test_api_results_row_has_pathway_fields_for_map_run(monkeypatch, tmp_path):
             "elapsed_ms": 100,
         },
     ]
-    fake_plain_results = [
-        {
-            "url": "https://example.com/",
-            "state_id": "desktop-light",
-            "viewport": "desktop",
-            "scheme": "light",
-            "width": 1440,
-            "height": 1000,
-            "pathway_id": None,
-            "pathway_status": None,
-            "status": "ok",
-            "file": "001-example-com-desktop-light.png",
-            "bytes": 5678,
-            "attempts": 1,
-            "elapsed_ms": 200,
-        },
-    ]
 
     def fake_run_capture(targets, settings, shots_dir_arg, progress):
-        for result in (fake_map_results if settings.get("map") else fake_plain_results):
+        for result in fake_map_results:
             progress(result)
-        return fake_map_results if settings.get("map") else fake_plain_results
+        return fake_map_results
 
     monkeypatch.setattr(capture_service, "run_capture", fake_run_capture)
 
@@ -352,31 +235,23 @@ def test_api_results_row_has_pathway_fields_for_map_run(monkeypatch, tmp_path):
                 "base_url": "https://example.com",
             },
         )
-        plain_response = client.post(
-            "/api/rested-captures/jobs",
-            json={"urls": ["https://example.com/"]},
-        )
 
     assert map_response.status_code == 200, map_response.text
-    assert plain_response.status_code == 200, plain_response.text
-
     map_job = map_response.json()
-    plain_job = plain_response.json()
+
     # Wait for the background thread to finish, then re-fetch.
     import time
 
+    map_final = map_job
     for _ in range(100):
         time.sleep(0.05)
         with TestClient(sunsponge_app.app) as client:
             map_final = client.get(f"/api/rested-captures/jobs/{map_job['job_id']}").json()
-            plain_final = client.get(f"/api/rested-captures/jobs/{plain_job['job_id']}").json()
-        if map_final["status"] != "running" and plain_final["status"] != "running":
+        if map_final["status"] != "running":
             break
 
     assert map_final["status"] in {"done", "done_with_errors"}
-    assert plain_final["status"] in {"done", "done_with_errors"}
     assert map_final["results"], "map job should have at least one result row"
-    assert plain_final["results"], "plain-URL job should have at least one result row"
 
     map_row = map_final["results"][0]
     assert map_row["pathway_id"] == "capture-start"
@@ -384,12 +259,6 @@ def test_api_results_row_has_pathway_fields_for_map_run(monkeypatch, tmp_path):
     # Existing fields must still be there.
     for field in ("url", "viewport", "scheme", "state_id", "file", "status", "bytes", "attempts", "elapsed_ms"):
         assert field in map_row, f"missing existing field {field!r} in map row"
-
-    plain_row = plain_final["results"][0]
-    assert plain_row["pathway_id"] is None
-    assert plain_row["pathway_status"] is None
-    for field in ("url", "viewport", "scheme", "state_id", "file", "status", "bytes", "attempts", "elapsed_ms"):
-        assert field in plain_row, f"missing existing field {field!r} in plain-URL row"
 
 
 # ---------------------------------------------------------------------------
@@ -404,8 +273,6 @@ def test_parse_manifest_sample_round_trip_works():
     assert ids == ["capture-start", "capture-job-poll", "catalog-search"]
 
 
-# Smoke test that the test JSON file is well-formed enough for the API test
-# above; if this fails the API test is meaningless.
 def test_sample_manifest_is_readable():
     parsed = load_pathway_map(manifest_path=str(FIXTURES / "pathway-manifest-sample.md"))
     assert parsed["pathways"], "sample manifest should still produce pathways"

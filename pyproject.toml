@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sunsponge"
 version = "0.1.0"
-description = "Website screenshot capture — soak up a whole site into screenshots."
+description = "RHOBEAR Captur'd — desktop, map-driven rested-state screenshots of your built HTML."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
@@ -13,7 +13,7 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
     "pydantic>=2",
-    "playwright>=1.40",
+    "playwright>=1.49",
 ]
 
 [project.optional-dependencies]

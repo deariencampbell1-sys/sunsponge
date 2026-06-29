@@ -1,8 +1,9 @@
-"""Tests for the agent-control (``/v1``) capture API — the SunSponge slice of
+"""Tests for the agent-control (``/v1``) capture API — the Captur'd slice of
 the Family API Contract:
 
-* ``POST /v1/capture {url | sitemap, viewports?, color_schemes?, workspace_id}``
-  → ``{ok, data:{job_id}}``.
+* ``POST /v1/capture {pathway_map, base_url?, viewports?, color_schemes?,
+  workspace_id}`` → ``{ok, data:{job_id}}``. Captur'd is map-driven only — a
+  pasted pathway map is required and there is no URL/sitemap input.
 * ``GET  /v1/capture/{job_id}`` → ``{ok, data:{status, shots:[{url, viewport,
   scheme, image_ref}]}}`` — ``image_ref`` is a storage HANDLE (a served URL),
   never inline bytes.
@@ -28,6 +29,18 @@ from sunsponge import capture_service
 from sunsponge.capture_service import RestedCaptureManager
 
 TOKEN = "test-service-token"
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+# A one-pathway map that resolves to the built-HTML root, so the shot matrix is
+# exactly viewports × schemes for a single page.
+MAP_TEXT = (FIXTURES / "single-pathway-manifest.md").read_text(encoding="utf-8")
+BASE_URL = "https://example.com"
+
+
+def _capture_body(**extra: Any) -> dict[str, Any]:
+    body: dict[str, Any] = {"pathway_map": MAP_TEXT, "base_url": BASE_URL}
+    body.update(extra)
+    return body
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +142,7 @@ def test_post_returns_503_when_token_not_configured(unset_token, fake_manager):
     with TestClient(sunsponge_app.app) as client:
         resp = client.post(
             "/v1/capture",
-            json={"url": "https://example.com/", "workspace_id": "ws"},
+            json=_capture_body(workspace_id="ws"),
             headers={"Authorization": f"Bearer {TOKEN}"},
         )
     assert resp.status_code == 503, resp.text
@@ -141,7 +154,7 @@ def test_post_returns_503_when_token_not_configured(unset_token, fake_manager):
 
 def test_post_rejects_missing_bearer_token(configured_token, fake_manager):
     with TestClient(sunsponge_app.app) as client:
-        resp = client.post("/v1/capture", json={"url": "https://example.com/", "workspace_id": "ws"})
+        resp = client.post("/v1/capture", json=_capture_body(workspace_id="ws"))
     assert resp.status_code == 401
     assert resp.json() == {"ok": False, "error": "invalid or missing service token"}
 
@@ -150,7 +163,7 @@ def test_post_rejects_wrong_token(configured_token, fake_manager):
     with TestClient(sunsponge_app.app) as client:
         resp = client.post(
             "/v1/capture",
-            json={"url": "https://example.com/", "workspace_id": "ws"},
+            json=_capture_body(workspace_id="ws"),
             headers={"Authorization": "Bearer nope"},
         )
     assert resp.status_code == 401
@@ -167,12 +180,11 @@ def test_post_accepts_correct_token_and_envelopes(configured_token, fake_manager
     with TestClient(sunsponge_app.app) as client:
         resp = client.post(
             "/v1/capture",
-            json={
-                "url": "https://example.com/",
-                "workspace_id": "ws-1",
-                "viewports": ["desktop", "mobile"],
-                "color_schemes": ["light", "dark"],
-            },
+            json=_capture_body(
+                workspace_id="ws-1",
+                viewports=["desktop", "mobile"],
+                color_schemes=["light", "dark"],
+            ),
             headers={"Authorization": f"Bearer {TOKEN}"},
         )
     assert resp.status_code == 200, resp.text
@@ -181,23 +193,14 @@ def test_post_accepts_correct_token_and_envelopes(configured_token, fake_manager
     payload = fake_manager.last_payload
     assert payload is not None
     assert payload["workspace_id"] == "ws-1"
-    assert payload["urls"] == ["https://example.com/"]
+    # pathway_map (contract) -> pathway_manifest (engine); base_url carried through.
+    # The envelope trims surrounding whitespace before handing off to the engine.
+    assert payload["pathway_manifest"] == MAP_TEXT.strip()
+    assert payload["base_url"] == BASE_URL
+    assert "urls" not in payload and "sitemap_url" not in payload
     assert payload["viewports"] == ["desktop", "mobile"]
     # color_schemes (contract) -> schemes (engine)
     assert payload["schemes"] == ["light", "dark"]
-
-
-def test_post_sitemap_mode_translates_payload(configured_token, fake_manager):
-    with TestClient(sunsponge_app.app) as client:
-        resp = client.post(
-            "/v1/capture",
-            json={"sitemap": "https://example.com/sitemap.xml", "workspace_id": "ws"},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-        )
-    assert resp.status_code == 200, resp.text
-    payload = fake_manager.last_payload
-    assert payload["sitemap_url"] == "https://example.com/sitemap.xml"
-    assert "urls" not in payload
 
 
 # ---------------------------------------------------------------------------
@@ -209,14 +212,15 @@ def test_post_400_when_workspace_id_missing(configured_token, fake_manager):
     with TestClient(sunsponge_app.app) as client:
         resp = client.post(
             "/v1/capture",
-            json={"url": "https://example.com/"},
+            json=_capture_body(),
             headers={"Authorization": f"Bearer {TOKEN}"},
         )
     assert resp.status_code == 400
     assert resp.json() == {"ok": False, "error": "workspace_id is required"}
 
 
-def test_post_400_when_neither_url_nor_sitemap(configured_token, fake_manager):
+def test_post_400_when_no_map(configured_token, fake_manager):
+    # No pathway map → rejected. Captur'd has no URL/sitemap fallback.
     with TestClient(sunsponge_app.app) as client:
         resp = client.post(
             "/v1/capture",
@@ -224,36 +228,7 @@ def test_post_400_when_neither_url_nor_sitemap(configured_token, fake_manager):
             headers={"Authorization": f"Bearer {TOKEN}"},
         )
     assert resp.status_code == 400
-    assert "url" in resp.json()["error"]
-
-
-def test_post_400_when_both_url_and_sitemap(configured_token, fake_manager):
-    with TestClient(sunsponge_app.app) as client:
-        resp = client.post(
-            "/v1/capture",
-            json={
-                "url": "https://example.com/",
-                "sitemap": "https://example.com/sitemap.xml",
-                "workspace_id": "ws",
-            },
-            headers={"Authorization": f"Bearer {TOKEN}"},
-        )
-    assert resp.status_code == 400
-    assert "not both" in resp.json()["error"]
-
-
-def test_post_400_for_invalid_url(configured_token, real_manager):
-    """A non-URL must be rejected before queueing (no Playwright launched)."""
-    with TestClient(sunsponge_app.app) as client:
-        resp = client.post(
-            "/v1/capture",
-            json={"url": "not-a-url", "workspace_id": "ws"},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-        )
-    assert resp.status_code == 400, resp.text
-    body = resp.json()
-    assert body["ok"] is False
-    assert "not-a-url" in body["error"]
+    assert "pathway map" in resp.json()["error"]
 
 
 # ---------------------------------------------------------------------------
@@ -266,12 +241,11 @@ def test_poll_returns_shots_matrix_with_image_ref_handles(configured_token, real
     with TestClient(sunsponge_app.app) as client:
         resp = client.post(
             "/v1/capture",
-            json={
-                "url": "https://example.com/",
-                "workspace_id": "ws-matrix",
-                "viewports": ["desktop", "mobile"],
-                "color_schemes": ["light", "dark"],
-            },
+            json=_capture_body(
+                workspace_id="ws-matrix",
+                viewports=["desktop", "mobile"],
+                color_schemes=["light", "dark"],
+            ),
             headers=headers,
         )
         assert resp.status_code == 200, resp.text
@@ -301,7 +275,7 @@ def test_workspace_id_namespaces_storage_and_shot_is_served(configured_token, re
     with TestClient(sunsponge_app.app) as client:
         resp = client.post(
             "/v1/capture",
-            json={"url": "https://example.com/", "workspace_id": "acme-corp", "viewports": ["desktop"]},
+            json=_capture_body(workspace_id="acme-corp", viewports=["desktop"]),
             headers=headers,
         )
         job_id = resp.json()["data"]["job_id"]
@@ -360,12 +334,11 @@ def test_failed_shots_go_to_errors_without_image_ref(configured_token, monkeypat
     with TestClient(sunsponge_app.app) as client:
         resp = client.post(
             "/v1/capture",
-            json={
-                "url": "https://example.com/",
-                "workspace_id": "ws",
-                "viewports": ["desktop", "mobile"],
-                "color_schemes": ["light"],
-            },
+            json=_capture_body(
+                workspace_id="ws",
+                viewports=["desktop", "mobile"],
+                color_schemes=["light"],
+            ),
             headers=headers,
         )
         job_id = resp.json()["data"]["job_id"]
@@ -405,7 +378,7 @@ def test_shot_missing_file_is_404(configured_token, real_manager):
     with TestClient(sunsponge_app.app) as client:
         resp = client.post(
             "/v1/capture",
-            json={"url": "https://example.com/", "workspace_id": "ws", "viewports": ["desktop"]},
+            json=_capture_body(workspace_id="ws", viewports=["desktop"]),
             headers=headers,
         )
         job_id = resp.json()["data"]["job_id"]
@@ -424,7 +397,7 @@ def test_shot_rejects_path_traversal(configured_token, real_manager):
     with TestClient(sunsponge_app.app) as client:
         resp = client.post(
             "/v1/capture",
-            json={"url": "https://example.com/", "workspace_id": "ws", "viewports": ["desktop"]},
+            json=_capture_body(workspace_id="ws", viewports=["desktop"]),
             headers=headers,
         )
         job_id = resp.json()["data"]["job_id"]

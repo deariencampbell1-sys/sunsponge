@@ -1,4 +1,10 @@
-// SunSponge capture studio view.
+// RHOBEAR Captur'd — capture studio view.
+//
+// Captur'd is a desktop tool. You give it two things: the built HTML you want
+// shots of (a local file or folder), and a PATHWAY MAP — the interaction tree
+// your agent produced — pasted or uploaded as markdown / verifier JSON. The map
+// says exactly what to capture, so the run is deterministic and fast. No URLs,
+// no crawling, no sitemaps.
 
 const RESTED_CAPTURE_VIEWPORTS = [
   { id: "desktop", label: "Desktop", hint: "1440 x 1000" },
@@ -12,14 +18,9 @@ const RESTED_CAPTURE_SCHEMES = [
 ];
 
 function RestedCaptureView() {
-  const [importMode, setImportMode] = React.useState("site");
-  const [urlText, setUrlText] = React.useState("");
-  const [sitemapUrl, setSitemapUrl] = React.useState("");
-  const [crawlUrl, setCrawlUrl] = React.useState("");
-  const [localPath, setLocalPath] = React.useState("");
-  const [crawlDepth, setCrawlDepth] = React.useState(8);
-  const [maxPages, setMaxPages] = React.useState(1000);
-  const [fileName, setFileName] = React.useState("");
+  const [baseUrl, setBaseUrl] = React.useState("");
+  const [mapText, setMapText] = React.useState("");
+  const [mapFileName, setMapFileName] = React.useState("");
   const [viewports, setViewports] = React.useState(["desktop", "tablet", "mobile"]);
   const [schemes, setSchemes] = React.useState(["light", "dark"]);
   const [format, setFormat] = React.useState("png");
@@ -31,36 +32,29 @@ function RestedCaptureView() {
   const [job, setJob] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
-  const fileInputRef = React.useRef(null);
+  const mapInputRef = React.useRef(null);
 
-  const api = window.SunSponge;
+  const api = window.Capturd;
 
-  const parsedUrls = React.useMemo(() => {
-    return urlText
-      .split(/[\r\n,]+/)
-      .map((value) => value.trim())
-      .filter(Boolean);
-  }, [urlText]);
+  const mapIsJson = React.useMemo(() => {
+    const trimmed = mapText.trim();
+    if (!trimmed) return false;
+    try { JSON.parse(trimmed); return true; } catch (_) { return false; }
+  }, [mapText]);
 
   const activeStates = viewports.length * schemes.length;
   const discoveredPages = job && Array.isArray(job.urls) ? job.urls.length : 0;
-  const pageEstimate = importMode === "site" || importMode === "local"
-    ? (discoveredPages || 1)
-    : (importMode === "sitemap" ? 1 : parsedUrls.length);
-  const estimatedShots = Math.max(1, pageEstimate) * activeStates;
   const completed = job ? Number(job.completed || 0) : 0;
-  const total = job ? Number(job.total || 0) : estimatedShots;
+  const total = job ? Number(job.total || 0) : 0;
   const progress = total ? Math.min(100, Math.round((completed / total) * 100)) : 0;
   const results = job && Array.isArray(job.results) ? job.results : [];
   const jobRunning = job && ["queued", "running"].includes(job.status);
-  const importReady = importMode === "site"
-    ? crawlUrl.trim()
-    : (importMode === "local" ? localPath.trim() : (importMode === "sitemap" ? sitemapUrl.trim() : parsedUrls.length > 0));
-  const canRun = !busy && !jobRunning && activeStates > 0 && Boolean(importReady) && api;
-  const importSummary = importMode === "site"
-    ? (discoveredPages ? discoveredPages + " pages" : "Site")
-    : (importMode === "local" ? (discoveredPages ? discoveredPages + " files" : "Local") : (importMode === "sitemap" ? "Sitemap" : parsedUrls.length + " URLs"));
-  const shotSummary = (importMode === "site" || importMode === "local") && !discoveredPages ? "Discover" : estimatedShots + " shots";
+  const mapReady = Boolean(mapText.trim());
+  const htmlReady = Boolean(baseUrl.trim());
+  const canRun = !busy && !jobRunning && activeStates > 0 && mapReady && htmlReady && api;
+
+  const importSummary = mapReady ? (mapIsJson ? "Verifier map" : "Pathway map") : "No map yet";
+  const shotSummary = total ? total + " shots" : (discoveredPages ? discoveredPages + " states" : activeStates + "/state");
 
   React.useEffect(() => {
     if (!job || !jobRunning || !api) return undefined;
@@ -80,27 +74,14 @@ function RestedCaptureView() {
     setList((prev) => prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]);
   };
 
-  const parseImportedFile = (text) => {
-    const trimmed = text.trim();
-    if (!trimmed) return [];
-    try {
-      const data = JSON.parse(trimmed);
-      if (Array.isArray(data)) return data.map(String);
-      if (data && Array.isArray(data.urls)) return data.urls.map(String);
-    } catch (_) {}
-    return trimmed.split(/[\r\n,]+/).map((value) => value.trim()).filter(Boolean);
-  };
-
-  const onFileChange = async (event) => {
+  const onMapFileChange = async (event) => {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
     setError("");
-    setFileName(file.name);
     try {
       const text = await file.text();
-      const urls = parseImportedFile(text);
-      setUrlText(urls.join("\n"));
-      setImportMode("file");
+      setMapText(text);
+      setMapFileName(file.name);
     } catch (err) {
       setError(err && err.message ? err.message : String(err));
     } finally {
@@ -113,17 +94,11 @@ function RestedCaptureView() {
     setBusy(true);
     setError("");
     setJob(null);
+    const trimmedMap = mapText.trim();
+    const mapField = mapIsJson ? { map_text: trimmedMap } : { pathway_manifest: trimmedMap };
     const payload = {
-      urls: importMode === "urls" || importMode === "file" ? parsedUrls : [],
-      sitemap_url: importMode === "sitemap" ? sitemapUrl.trim() : "",
-      crawl: importMode === "site",
-      crawl_url: importMode === "site" ? crawlUrl.trim() : "",
-      local: importMode === "local",
-      local_path: importMode === "local" ? localPath.trim() : "",
-      crawl_depth: crawlDepth,
-      crawl_concurrency: 6,
-      max_pages: maxPages,
-      include_sitemaps: true,
+      ...mapField,
+      base_url: baseUrl.trim(),
       viewports,
       schemes,
       format,
@@ -132,7 +107,7 @@ function RestedCaptureView() {
       export_dir: exportDir.trim() || null,
       concurrency,
       wait_ms: waitMs,
-      name: "sunsponge-captures",
+      name: "capturd-captures",
     };
     try {
       const started = await api.startRestedCapture(payload);
@@ -148,7 +123,7 @@ function RestedCaptureView() {
     if (!job || !job.job_id || !api) return;
     setError("");
     try {
-      await api.downloadRestedCapture(job.job_id, (job.name || "sunsponge-captures") + ".zip");
+      await api.downloadRestedCapture(job.job_id, (job.name || "capturd-captures") + ".zip");
     } catch (err) {
       setError(err && err.message ? err.message : String(err));
     }
@@ -158,10 +133,10 @@ function RestedCaptureView() {
     <div className="capture">
       <div className="capture__top">
         <div>
-          <div className="capture__eyebrow"><IconCamera size={14} /> WEBSITE CAPTURE</div>
+          <div className="capture__eyebrow"><IconCamera size={14} /> RESTED-STATE CAPTURE</div>
           <div className="capture__brand">
-            <img className="capture__brand-mark" src="/assets/rhobear-logo.png" alt="Rhobear (amber)" />
-            <span>SunSponge</span>
+            <img className="capture__brand-mark" src="/assets/rhobear-logo.png" alt="Rhobear" />
+            <span>RHOBEAR Captur'd</span>
           </div>
           <div className="capture__title-row">
             <h1 className="capture__title">Capture Studio</h1>
@@ -178,58 +153,36 @@ function RestedCaptureView() {
       <div className="capture__grid">
         <section className="capture-panel capture-panel--import">
           <div className="capture-panel__head">
-            <h2>Import</h2>
-            <div className="capture-seg">
-              <button className={importMode === "site" ? "is-active" : ""} type="button" onClick={() => setImportMode("site")}>Site</button>
-              <button className={importMode === "local" ? "is-active" : ""} type="button" onClick={() => setImportMode("local")}>Local</button>
-              <button className={importMode === "urls" ? "is-active" : ""} type="button" onClick={() => setImportMode("urls")}>URLs</button>
-              <button className={importMode === "file" ? "is-active" : ""} type="button" onClick={() => { setImportMode("file"); fileInputRef.current && fileInputRef.current.click(); }}>
-                <IconUpload size={13} /> File
-              </button>
-              <button className={importMode === "sitemap" ? "is-active" : ""} type="button" onClick={() => setImportMode("sitemap")}>Sitemap</button>
-            </div>
+            <h2>Source</h2>
           </div>
 
-          <input ref={fileInputRef} className="capture__file" type="file" accept=".txt,.csv,.json,.xml" onChange={onFileChange} />
+          <label className="capture-field">
+            <span>Built HTML — file or folder</span>
+            <input
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="C:\\site\\index.html  or  C:\\site"
+              spellCheck={false}
+            />
+          </label>
 
-          {importMode === "site" ? (
-            <>
-              <label className="capture-field">
-                <span>Site URL</span>
-                <input value={crawlUrl} onChange={(e) => setCrawlUrl(e.target.value)} placeholder="https://example.com" />
-              </label>
-              <div className="capture-numbers">
-                <label><span>Depth</span><input type="number" min="0" max="20" value={crawlDepth} onChange={(e) => setCrawlDepth(Number(e.target.value || 0))} /></label>
-                <label><span>Max pages</span><input type="number" min="1" max="1000" value={maxPages} onChange={(e) => setMaxPages(Number(e.target.value || 1))} /></label>
-              </div>
-            </>
-          ) : importMode === "local" ? (
-            <label className="capture-field">
-              <span>Local HTML path</span>
-              <input value={localPath} onChange={(e) => setLocalPath(e.target.value)} placeholder="C:\\site\\index.html or C:\\site" />
-            </label>
-          ) : importMode === "sitemap" ? (
-            <label className="capture-field">
-              <span>Sitemap URL</span>
-              <input value={sitemapUrl} onChange={(e) => setSitemapUrl(e.target.value)} placeholder="https://example.com/sitemap.xml" />
-            </label>
-          ) : (
-            <>
-              <textarea
-                className="capture-urlbox"
-                value={urlText}
-                onChange={(e) => setUrlText(e.target.value)}
-                placeholder={"https://example.com\nhttps://example.com/pricing"}
-                spellCheck={false}
-              />
-              <div className="capture-inline">
-                <button className="btn btn--ghost" type="button" onClick={() => fileInputRef.current && fileInputRef.current.click()}>
-                  <IconUpload size={14} /> Import file
-                </button>
-                {fileName && <span className="capture-muted">{fileName}</span>}
-              </div>
-            </>
-          )}
+          <label className="capture-field">
+            <span>Pathway map {mapText.trim() ? (mapIsJson ? "· verifier JSON" : "· markdown") : ""}</span>
+            <textarea
+              className="capture-urlbox"
+              value={mapText}
+              onChange={(e) => { setMapText(e.target.value); setMapFileName(""); }}
+              placeholder={"Paste the pathway map your agent produced — the markdown table of buttons/states (or verifier JSON)."}
+              spellCheck={false}
+            />
+          </label>
+          <div className="capture-inline">
+            <button className="btn btn--ghost" type="button" onClick={() => mapInputRef.current && mapInputRef.current.click()}>
+              <IconUpload size={14} /> Upload map (.md / .json)
+            </button>
+            {mapFileName && <span className="capture-muted">{mapFileName}</span>}
+          </div>
+          <input ref={mapInputRef} className="capture__file" type="file" accept=".md,.markdown,.txt,.json" onChange={onMapFileChange} />
         </section>
 
         <section className="capture-panel">
@@ -268,7 +221,7 @@ function RestedCaptureView() {
           </div>
           <label className="capture-field">
             <span>Export folder (optional)</span>
-            <input value={exportDir} onChange={(e) => setExportDir(e.target.value)} placeholder="Server-side path" />
+            <input value={exportDir} onChange={(e) => setExportDir(e.target.value)} placeholder="Where to drop the shots (local path)" />
           </label>
           <div className="capture-numbers">
             <label><span>Workers</span><input type="number" min="1" max="8" value={concurrency} onChange={(e) => setConcurrency(Number(e.target.value || 1))} /></label>
@@ -286,7 +239,7 @@ function RestedCaptureView() {
             <div className="capture-progress__bar" style={{ width: progress + "%" }} />
           </div>
           <div className="capture-run__meta">
-            {job ? job.message : (canRun ? "Ready" : "Waiting")}
+            {job ? job.message : (canRun ? "Ready" : (htmlReady ? "Paste or upload a pathway map" : "Point at your built HTML"))}
           </div>
         </div>
         {job && job.zip_url && (
@@ -316,7 +269,7 @@ function RestedCaptureView() {
                 <span className="capture-result__icon">
                   {item.status === "ok" ? <IconCheckCircle size={15} /> : <IconAlertCircle size={15} />}
                 </span>
-                <span className="capture-result__url">{item.url}</span>
+                <span className="capture-result__url">{item.pathway_id || item.url}</span>
                 <span className="capture-result__state">{item.state_id}</span>
                 <span className="capture-result__time">{item.elapsed_ms} ms</span>
                 {item.error && <span className="capture-result__error">{item.error}</span>}

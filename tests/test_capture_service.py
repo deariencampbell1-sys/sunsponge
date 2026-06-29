@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from sunsponge import app as sunsponge_app
 from sunsponge.capture_service import (
     RestedCaptureError,
     build_capture_plan,
-    discover_local_html,
     normalize_url,
-    same_site_page_urls,
 )
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+SAMPLE_MANIFEST = FIXTURES / "pathway-manifest-sample.md"
 
 
 def test_normalize_url_adds_https():
@@ -26,102 +29,56 @@ def test_normalize_url_rejects_unsupported_scheme():
 
 
 def test_normalize_url_accepts_local_html(tmp_path):
+    # The built HTML the user points at lives locally — file:// must work.
     page = tmp_path / "index.html"
     page.write_text("<h1>Local</h1>", encoding="utf-8")
 
     assert normalize_url(str(page)).startswith("file://")
 
 
-def test_discover_local_html_folder_prioritizes_hub_sequence(tmp_path):
-    (tmp_path / "index.html").write_text("<a href='nested.html'>Nested</a>", encoding="utf-8")
-    (tmp_path / "activation.html").write_text("<h1>Activate</h1>", encoding="utf-8")
-    (tmp_path / "intro-to-pops.html").write_text("<h1>Intro</h1>", encoding="utf-8")
-    (tmp_path / "nested.html").write_text("<h1>Nested</h1>", encoding="utf-8")
-    (tmp_path / "_head.html").write_text("<meta name='fragment'>", encoding="utf-8")
-
-    urls, meta = discover_local_html(str(tmp_path), max_urls=10)
-
-    assert len(urls) == 4
-    assert urls[0].endswith("/activation.html")
-    assert urls[1].endswith("/intro-to-pops.html")
-    assert urls[2].endswith("/index.html")
-    assert meta["mode"] == "local"
+def test_build_capture_plan_requires_a_map():
+    # Captur'd is map-driven only — no map, no plan (and definitely no URLs).
+    try:
+        build_capture_plan({"viewports": ["desktop"], "schemes": ["light"]})
+    except RestedCaptureError as exc:
+        assert "pathway map" in str(exc)
+    else:
+        raise AssertionError("expected a pathway-map-required error")
 
 
 def test_build_capture_plan_expands_state_matrix():
+    # 3 pathways in the fixture × 2 viewports × 2 schemes = 12 capture targets.
     urls, targets, settings = build_capture_plan({
-        "urls": ["example.com", "https://example.com/"],
+        "manifest_path": str(SAMPLE_MANIFEST),
+        "base_url": "https://example.com",
         "viewports": ["desktop", "mobile"],
         "schemes": ["light", "dark"],
         "format": "png",
     })
 
-    assert urls == ["https://example.com/"]
-    assert len(targets) == 4
-    assert {target.state_id for target in targets} == {
-        "desktop-light",
-        "desktop-dark",
-        "mobile-light",
-        "mobile-dark",
-    }
-    assert settings["capture_count"] == 4
+    assert settings["map"] is True
+    assert settings["discovery"]["mode"] == "map"
+    assert settings["discovery"]["pathway_count"] == 3
+    assert len(targets) == 12
+    assert settings["capture_count"] == 12
+    assert {t.viewport_id for t in targets} == {"desktop", "mobile"}
+    assert {t.scheme for t in targets} == {"light", "dark"}
+    # Every target carries its pathway identity in the state id.
+    assert all(t.pathway_id for t in targets)
 
 
-def test_same_site_page_urls_filters_assets_external_and_fragments():
-    links = [
-        "/crew/#top",
-        "https://www.example.com/hub/",
-        "https://github.com/example/project",
-        "/assets/logo.png",
-        "mailto:hello@example.com",
-        "/crew/",
-    ]
-
-    urls = same_site_page_urls("https://example.com/", links, {"example.com"})
-
-    assert urls == [
-        "https://example.com/crew/",
-        "https://example.com/hub/",
-    ]
-
-
-def test_build_capture_plan_crawl_uses_discovered_pages(monkeypatch):
-    def fake_discover_site_urls(seed_values, **_kwargs):
-        assert seed_values == ["example.com"]
-        return ["https://example.com/", "https://example.com/about/"], {"mode": "site", "page_count": 2}
-
-    monkeypatch.setattr(
-        "sunsponge.capture_service.discover_site_urls",
-        fake_discover_site_urls,
-    )
+def test_build_capture_plan_accepts_pasted_manifest():
+    # The primary desktop path: the map arrives as pasted text, not a file.
+    raw = SAMPLE_MANIFEST.read_text(encoding="utf-8")
     urls, targets, settings = build_capture_plan({
-        "crawl": True,
-        "crawl_url": "example.com",
+        "pathway_manifest": raw,
+        "base_url": "https://example.com",
         "viewports": ["desktop"],
         "schemes": ["light"],
     })
 
-    assert urls == ["https://example.com/", "https://example.com/about/"]
-    assert len(targets) == 2
-    assert settings["crawl"] is True
-    assert settings["page_count"] == 2
-
-
-def test_build_capture_plan_local_folder_expands_files(tmp_path):
-    (tmp_path / "index.html").write_text("<h1>Index</h1>", encoding="utf-8")
-    (tmp_path / "activation.html").write_text("<h1>Activation</h1>", encoding="utf-8")
-
-    urls, targets, settings = build_capture_plan({
-        "local": True,
-        "local_path": str(tmp_path),
-        "viewports": ["desktop"],
-        "schemes": ["light"],
-    })
-
-    assert len(urls) == 2
-    assert len(targets) == 2
-    assert settings["local"] is True
-    assert settings["discovery"]["mode"] == "local"
+    assert settings["discovery"]["mode"] == "map"
+    assert len(targets) == 3
 
 
 def test_api_registers_capture_routes():
@@ -137,10 +94,11 @@ def test_api_can_start_capture_job(monkeypatch):
             return {"ok": True, "job_id": "fake-job", "payload": payload}
 
     monkeypatch.setattr(sunsponge_app, "_CAPTURE_MANAGER", FakeCaptureManager())
+    raw = SAMPLE_MANIFEST.read_text(encoding="utf-8")
     with TestClient(sunsponge_app.app) as client:
         response = client.post(
             "/api/rested-captures/jobs",
-            json={"urls": ["https://example.com"]},
+            json={"pathway_manifest": raw, "base_url": "https://example.com"},
         )
 
     assert response.status_code == 200, response.text
