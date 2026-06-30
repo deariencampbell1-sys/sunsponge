@@ -1,0 +1,73 @@
+name: Build Captur'd Windows installer
+
+# Builds the RHOBEAR Captur'd desktop app (PyInstaller) and an Inno Setup
+# installer (.exe) on a Windows runner. Bundles Python, the FastAPI app, the
+# static UI, Playwright + Chromium. Artifact is downloadable; pushing a tag
+# (capturd-v*) also attaches it to a GitHub Release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Installer version"
+        default: "0.1.0"
+        required: true
+  push:
+    tags: ["capturd-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: "0"   # install Chromium INTO the playwright package so PyInstaller bundles it
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "value=${GITHUB_REF_NAME#capturd-v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install app + build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+          pip install pyinstaller pywebview
+
+      - name: Install Chromium (bundled into package)
+        run: python -m playwright install chromium
+
+      - name: PyInstaller
+        run: pyinstaller packaging/sunsponge.spec --noconfirm
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: cmd
+        run: '"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=${{ steps.ver.outputs.value }} packaging\installer.iss'
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RHOBEAR-Capturd-Setup
+          path: dist/installer/*.exe
+          if-no-files-found: error
+
+      - name: Attach to release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/installer/*.exe

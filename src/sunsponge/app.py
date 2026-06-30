@@ -26,7 +26,9 @@ logger = logging.getLogger(__name__)
 SERVICE_TOKEN_ENV = "RHOBEAR_SERVICE_TOKEN"
 EXTERNAL_BASE_ENV = "SUNSPONGE_EXTERNAL_BASE_URL"
 
-UI_DIR = Path(__file__).resolve().parents[2] / "ui"
+# In a packaged build (PyInstaller) the source tree layout is gone, so the
+# desktop launcher points us at the bundled ui/ via SUNSPONGE_UI_DIR.
+UI_DIR = Path(os.environ.get("SUNSPONGE_UI_DIR") or (Path(__file__).resolve().parents[2] / "ui"))
 _CAPTURE_MANAGER = RestedCaptureManager()
 
 
