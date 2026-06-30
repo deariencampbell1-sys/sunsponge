@@ -1,14 +1,19 @@
-"""Website rested-state capture jobs.
+"""Rested-state capture jobs for RHOBEAR Captur'd.
 
-This module is intentionally usable without Playwright installed: imports stay
-clean, and dependency failures are reported on the job instead of crashing the
-API process.
+Captur'd is a DESKTOP tool. The input is always:
+  1. your own built HTML/UI (a local file or folder you point at), and
+  2. a pathway map (the interaction tree your agent produced), pasted or
+     uploaded as markdown / verifier JSON.
+
+There is no URL fetching, crawling, or sitemap discovery — the map says exactly
+what to capture, so the run is deterministic and fast. This module is usable
+without Playwright installed: imports stay clean, and dependency failures are
+reported on the job instead of crashing the process.
 """
 
 from __future__ import annotations
 
 import asyncio
-import gzip
 import json
 import os
 import re
@@ -21,10 +26,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib import request as urlrequest
 from urllib.request import url2pathname
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
-from xml.etree import ElementTree
 
 
 DEFAULT_VIEWPORTS: dict[str, dict[str, int]] = {
@@ -33,78 +36,16 @@ DEFAULT_VIEWPORTS: dict[str, dict[str, int]] = {
     "mobile": {"width": 390, "height": 844},
 }
 DEFAULT_SCHEMES = ("light", "dark")
-MAX_URLS = 1000
-MAX_SITEMAP_URLS = 1000
-MAX_CRAWL_URLS = 1000
+MAX_TARGETS = 5000
 DEFAULT_TIMEOUT_MS = 30000
 DEFAULT_WAIT_MS = 600
 DEFAULT_CONCURRENCY = 3
 DEFAULT_RETRIES = 1
 DEFAULT_RETRY_TIMEOUT_MS = 60000
-DEFAULT_CRAWL_DEPTH = 8
-DEFAULT_CRAWL_CONCURRENCY = 6
-DEFAULT_DISCOVERY_TIMEOUT_MS = 15000
-DEFAULT_DISCOVERY_WAIT_MS = 150
 
-USER_AGENT = "SunSponge Capture/1.0 (+https://github.com/deariencampbell1-sys/sunsponge)"
-
-NON_PAGE_EXTENSIONS = {
-    ".7z",
-    ".avi",
-    ".avif",
-    ".bmp",
-    ".css",
-    ".csv",
-    ".doc",
-    ".docx",
-    ".eot",
-    ".gif",
-    ".gz",
-    ".ico",
-    ".jpeg",
-    ".jpg",
-    ".js",
-    ".json",
-    ".map",
-    ".mjs",
-    ".mov",
-    ".mp3",
-    ".mp4",
-    ".ogg",
-    ".otf",
-    ".pdf",
-    ".png",
-    ".rar",
-    ".rss",
-    ".svg",
-    ".tar",
-    ".tgz",
-    ".tif",
-    ".tiff",
-    ".ts",
-    ".ttf",
-    ".txt",
-    ".wasm",
-    ".wav",
-    ".webm",
-    ".webmanifest",
-    ".webp",
-    ".woff",
-    ".woff2",
-    ".xml",
-    ".zip",
-}
+USER_AGENT = "RHOBEAR Captur'd/1.0 (+https://github.com/deariencampbell1-sys/sunsponge)"
 
 LOCAL_PAGE_EXTENSIONS = {".html", ".htm"}
-LOCAL_SKIP_DIRS = {
-    ".git",
-    ".hg",
-    ".svn",
-    "__pycache__",
-    "node_modules",
-    "target",
-}
-LOCAL_SKIP_FILE_PREFIXES = ("_", ".")
 
 TRACKING_QUERY_KEYS = {"fbclid", "gclid", "igshid", "mc_cid", "mc_eid", "msclkid"}
 
@@ -137,6 +78,7 @@ class CaptureTarget:
     pathway_id: str = ""
     pathway_status: str = ""
     pathway_trigger: str = ""
+    trigger_selector: str = ""  # CSS selector to click after load, to reach the rested state
 
     @property
     def state_id(self) -> str:
@@ -157,8 +99,8 @@ def _app_data_dir() -> Path:
         return Path(configured).expanduser()
     local = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
     if local:
-        return Path(local) / "SunSponge"
-    return Path.home() / ".sunsponge"
+        return Path(local) / "Capturd"
+    return Path.home() / ".capturd"
 
 
 def _slug(value: str, fallback: str = "site") -> str:
@@ -278,569 +220,70 @@ def _canonical_page_url(value: str, base: str | None = None, preferred_netloc: s
     return urlunparse((scheme, netloc, path, "", query, ""))
 
 
-def _url_key(value: str) -> str:
-    parsed = urlparse(value)
-    if parsed.scheme == "file":
-        return "file://" + _local_key(value)
-    host = _site_host_key(parsed.hostname)
-    port = f":{parsed.port}" if parsed.port else ""
-    path = re.sub(r"/{2,}", "/", parsed.path or "/")
-    path = path.rstrip("/") if path != "/" else "/"
-    query = _clean_query(parsed.query)
-    return urlunparse((parsed.scheme.lower(), host + port, path, "", query, ""))
-
-
-def _looks_like_page_url(value: str) -> bool:
-    parsed = urlparse(value)
-    if parsed.scheme == "file":
-        return _path_from_file_url(value).suffix.lower() in LOCAL_PAGE_EXTENSIONS
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        return False
-    suffix = Path(parsed.path.lower()).suffix
-    return suffix not in NON_PAGE_EXTENSIONS
-
-
-def _is_same_site(value: str, allowed_site_keys: set[str]) -> bool:
-    return _site_host_key(urlparse(value).hostname) in allowed_site_keys
-
-
 def normalize_url(value: str) -> str:
+    """Canonicalize a page reference. Handles local file paths / file:// URLs
+    (the built HTML the user points at) as well as http(s) targets a map's
+    pathway may resolve to."""
     return _canonical_page_url(value)
 
 
-def _is_valid_user_url(value: str) -> bool:
-    """True for inputs that look like URLs the user actually intended.
-
-    Local file paths, inputs that already carry a scheme, and bare hosts that
-    contain a dot all count. The point is to reject obvious typos like
-    ``not-a-url`` so they are not silently coerced into ``https://not-a-url/``
-    and then handed to Playwright, which would only fail on a DNS error after
-    a full capture cycle. Deeper scheme/host validation is still done by
-    :func:`_canonical_page_url` when the URL is normalized.
-    """
-    if not value or not value.strip():
-        return False
-    candidate = value.strip()
-    if _is_local_input(candidate):
-        return True
-    if "://" in candidate:
-        return True
-    # Bare host form: require a dot in the host portion (the bit before any
-    # path) so something like "example.com" passes but "not-a-url" does not.
-    host = candidate.split("/", 1)[0]
-    return "." in host
-
-
-def _dedupe_urls(values: list[str]) -> list[str]:
-    seen: set[str] = set()
-    out: list[str] = []
-    for value in values:
-        url = normalize_url(value)
-        key = _url_key(url)
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(url)
-    return out
-
-
-def _parse_sitemap_xml(xml_bytes: bytes) -> tuple[list[str], list[str]]:
-    root = ElementTree.fromstring(xml_bytes)
-    ns = ""
-    if root.tag.startswith("{"):
-        ns = root.tag.split("}", 1)[0] + "}"
-
-    page_urls: list[str] = []
-    sitemap_urls: list[str] = []
-    if root.tag.endswith("urlset"):
-        for loc in root.findall(f".//{ns}url/{ns}loc"):
-            if loc.text and loc.text.strip():
-                page_urls.append(loc.text.strip())
-    elif root.tag.endswith("sitemapindex"):
-        for loc in root.findall(f".//{ns}sitemap/{ns}loc"):
-            if loc.text and loc.text.strip():
-                sitemap_urls.append(loc.text.strip())
-    return page_urls, sitemap_urls
-
-
-def _fetch_url_bytes(url: str, timeout: int = 20, limit: int = 10 * 1024 * 1024) -> tuple[bytes, dict[str, str]]:
-    req = urlrequest.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
-    with urlrequest.urlopen(req, timeout=timeout) as resp:
-        body = resp.read(limit)
-        headers = {key.lower(): value for key, value in resp.headers.items()}
-    if headers.get("content-encoding", "").lower() == "gzip" or urlparse(url).path.endswith(".gz"):
-        body = gzip.decompress(body)
-    return body, headers
-
-
-def expand_sitemap(sitemap_url: str, limit: int = MAX_SITEMAP_URLS) -> list[str]:
-    root_url = normalize_url(sitemap_url)
-    pending = [root_url]
-    seen_sitemaps: set[str] = set()
-    out: list[str] = []
-
-    while pending and len(out) < limit:
-        current = pending.pop(0)
-        if current in seen_sitemaps:
-            continue
-        seen_sitemaps.add(current)
-
-        body, _headers = _fetch_url_bytes(current, timeout=20)
-        page_urls, child_sitemaps = _parse_sitemap_xml(body)
-        for url in page_urls:
-            if len(out) >= limit:
-                break
-            out.append(url)
-        for child in child_sitemaps:
-            if child not in seen_sitemaps and len(pending) < 50:
-                pending.append(child)
-
-    return _dedupe_urls(out)
-
-
-def _sitemap_hints_for_seed(seed_url: str) -> list[str]:
-    parsed = urlparse(normalize_url(seed_url))
-    origin = f"{parsed.scheme}://{parsed.netloc}"
-    hints: list[str] = []
-    try:
-        body, _headers = _fetch_url_bytes(f"{origin}/robots.txt", timeout=8, limit=1024 * 1024)
-        for line in body.decode("utf-8", errors="ignore").splitlines():
-            if line.lower().startswith("sitemap:"):
-                sitemap = line.split(":", 1)[1].strip()
-                if sitemap:
-                    hints.append(sitemap)
-    except Exception:
-        pass
-    hints.extend([
-        f"{origin}/sitemap.xml",
-        f"{origin}/sitemap_index.xml",
-        f"{origin}/sitemap-index.xml",
-    ])
-    return _dedupe_urls(hints)
-
-
-def same_site_page_urls(base_url: str, raw_links: list[str], allowed_site_keys: set[str]) -> list[str]:
-    base = normalize_url(base_url)
-    preferred_netloc = urlparse(base).netloc
-    urls: list[str] = []
-    for raw in raw_links:
-        try:
-            candidate = _canonical_page_url(raw, base=base, preferred_netloc=preferred_netloc)
-        except RestedCaptureError:
-            continue
-        if not _looks_like_page_url(candidate) or not _is_same_site(candidate, allowed_site_keys):
-            continue
-        urls.append(candidate)
-    return _dedupe_urls(urls)
-
-
-def _extract_html_links(path: Path) -> list[str]:
-    try:
-        text = path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return []
-    links = re.findall(r"""(?:href|src)\s*=\s*["']([^"']+)["']""", text, flags=re.IGNORECASE)
-    links.extend(re.findall(r"""(?:href|src)\s*=\s*([^\s"'<>]+)""", text, flags=re.IGNORECASE))
-    return [link.strip() for link in links if link.strip()]
-
-
-def _iter_local_html(root: Path, limit: int) -> list[Path]:
-    html_files: list[Path] = []
-    for path in root.rglob("*"):
-        if len(html_files) >= limit:
-            break
-        if any(part in LOCAL_SKIP_DIRS for part in path.relative_to(root).parts):
-            continue
-        if (
-            path.is_file()
-            and path.suffix.lower() in LOCAL_PAGE_EXTENSIONS
-            and not path.name.startswith(LOCAL_SKIP_FILE_PREFIXES)
-        ):
-            html_files.append(path.resolve())
-
-    def sort_key(path: Path) -> tuple[int, str]:
-        name = path.name.lower()
-        priority = {
-            "activation.html": 0,
-            "intro-to-pops.html": 1,
-            "index.html": 2,
-            "rhobear-hub.html": 3,
-            "verify-sequence.html": 4,
-        }.get(name, 10)
-        return priority, str(path).lower()
-
-    return sorted(html_files, key=sort_key)
-
-
-def discover_local_html(
-    local_value: str,
-    *,
-    max_urls: int = MAX_CRAWL_URLS,
-    max_depth: int = DEFAULT_CRAWL_DEPTH,
-) -> tuple[list[str], dict[str, Any]]:
-    entry = _local_path_from_value(local_value)
-    max_urls = max(1, min(MAX_CRAWL_URLS, int(max_urls or MAX_CRAWL_URLS)))
-    max_depth = max(0, min(20, int(max_depth or DEFAULT_CRAWL_DEPTH)))
-
-    if entry.is_dir():
-        root = entry
-        files = _iter_local_html(root, max_urls)
-        if not files:
-            raise RestedCaptureError(f"local folder has no HTML files: {local_value}")
-        urls = [_file_url_from_path(path) for path in files[:max_urls]]
-        return urls, {
-            "mode": "local",
-            "root": str(root),
-            "seed_urls": [_file_url_from_path(files[0])],
-            "page_count": len(urls),
-            "max_urls": max_urls,
-            "max_depth": 0,
-            "crawl_log": [
-                {
-                    "url": _file_url_from_path(path),
-                    "final_url": _file_url_from_path(path),
-                    "depth": 0,
-                    "ok": True,
-                    "status": "local",
-                    "link_count": len(_extract_html_links(path)),
-                    "elapsed_ms": 0,
-                    "error": None,
-                }
-                for path in files[:max_urls]
-            ],
-        }
-
-    if entry.suffix.lower() not in LOCAL_PAGE_EXTENSIONS:
-        raise RestedCaptureError(f"local file is not HTML: {local_value}")
-
-    root = entry.parent
-    pending: list[tuple[Path, int]] = [(entry.resolve(), 0)]
-    queued = {_local_key(_file_url_from_path(entry))}
-    seen: set[str] = set()
-    out: list[Path] = []
-    crawl_log: list[dict[str, Any]] = []
-    while pending and len(out) < max_urls:
-        current, depth = pending.pop(0)
-        key = _local_key(_file_url_from_path(current))
-        if key in seen or depth > max_depth:
-            continue
-        seen.add(key)
-        out.append(current)
-        links = _extract_html_links(current)
-        crawl_log.append({
-            "url": _file_url_from_path(current),
-            "final_url": _file_url_from_path(current),
-            "depth": depth,
-            "ok": True,
-            "status": "local",
-            "link_count": len(links),
-            "elapsed_ms": 0,
-            "error": None,
-        })
-        if depth >= max_depth:
-            continue
-        base = _file_url_from_path(current)
-        for link in links:
-            try:
-                candidate = _canonical_page_url(link, base=base)
-                candidate_path = _path_from_file_url(candidate).resolve()
-            except RestedCaptureError:
-                continue
-            try:
-                candidate_path.relative_to(root)
-            except ValueError:
-                continue
-            if candidate_path.suffix.lower() not in LOCAL_PAGE_EXTENSIONS:
-                continue
-            candidate_key = _local_key(_file_url_from_path(candidate_path))
-            if candidate_key in queued or candidate_key in seen:
-                continue
-            queued.add(candidate_key)
-            pending.append((candidate_path, depth + 1))
-
-    urls = [_file_url_from_path(path) for path in out]
-    return urls, {
-        "mode": "local",
-        "root": str(root),
-        "seed_urls": [_file_url_from_path(entry)],
-        "page_count": len(urls),
-        "max_urls": max_urls,
-        "max_depth": max_depth,
-        "crawl_log": crawl_log,
-    }
-
-
-async def _extract_links(page: Any) -> list[str]:
-    try:
-        links = await page.evaluate(
-            """() => {
-              const out = [];
-              const push = (value) => {
-                if (typeof value === "string" && value.trim()) out.push(value);
-              };
-              for (const el of Array.from(document.querySelectorAll("a[href], area[href]"))) {
-                push(el.href || el.getAttribute("href"));
-              }
-              for (const el of Array.from(document.querySelectorAll("link[href]"))) {
-                const rel = (el.getAttribute("rel") || "").toLowerCase();
-                if (/(canonical|alternate|next|prev)/.test(rel)) push(el.href || el.getAttribute("href"));
-              }
-              for (const el of Array.from(document.querySelectorAll("[data-href], [data-url]"))) {
-                push(el.getAttribute("data-href"));
-                push(el.getAttribute("data-url"));
-              }
-              return out;
-            }"""
-        )
-    except Exception:
-        return []
-    return [str(item) for item in links if str(item).strip()]
-
-
-async def _block_discovery_assets(route: Any) -> None:
-    try:
-        resource_type = route.request.resource_type
-        if resource_type in {"font", "image", "media"}:
-            await route.abort()
-            return
-    except Exception:
-        pass
-    await route.continue_()
-
-
-async def _crawl_one_page(context: Any, url: str, timeout_ms: int, wait_ms: int) -> dict[str, Any]:
-    page = None
-    started = time.perf_counter()
-    try:
-        page = await context.new_page()
-        page.set_default_timeout(timeout_ms)
-        response = await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-        try:
-            await page.wait_for_load_state("networkidle", timeout=min(timeout_ms, 3000))
-        except Exception:
-            pass
-        if wait_ms > 0:
-            await page.wait_for_timeout(wait_ms)
-        final_url = normalize_url(page.url)
-        links = await _extract_links(page)
-        return {
-            "ok": True,
-            "url": url,
-            "final_url": final_url,
-            "status": response.status if response is not None else None,
-            "links": links,
-            "elapsed_ms": int((time.perf_counter() - started) * 1000),
-        }
-    except Exception as exc:
-        return {
-            "ok": False,
-            "url": url,
-            "final_url": url,
-            "links": [],
-            "error": str(exc),
-            "elapsed_ms": int((time.perf_counter() - started) * 1000),
-        }
-    finally:
-        if page is not None:
-            try:
-                await page.close()
-            except Exception:
-                pass
-
-
-async def _discover_site_urls_async(
-    seed_urls: list[str],
-    allowed_site_keys: set[str],
-    max_urls: int,
-    max_depth: int,
-    concurrency: int,
-    timeout_ms: int,
-    wait_ms: int,
-) -> tuple[list[str], list[dict[str, Any]]]:
-    try:
-        from playwright.async_api import async_playwright
-    except ImportError as exc:
-        raise RestedCaptureError(
-            "Playwright is required for site discovery. Install engine requirements first."
-        ) from exc
-
-    pending: list[tuple[str, int]] = [(url, 0) for url in _dedupe_urls(seed_urls)]
-    queued_keys = {_url_key(url) for url, _depth in pending}
-    crawled_keys: set[str] = set()
-    discovered_keys: set[str] = set()
-    discovered: list[str] = []
-    crawl_log: list[dict[str, Any]] = []
-
-    async with async_playwright() as p:
-        browser = await _launch_browser(p)
-        try:
-            context = await browser.new_context(
-                viewport={"width": 1366, "height": 900},
-                reduced_motion="reduce",
-                locale="en-US",
-                user_agent=USER_AGENT,
-            )
-            await context.route("**/*", _block_discovery_assets)
-            try:
-                while pending and len(discovered) < max_urls:
-                    batch: list[tuple[str, int]] = []
-                    while pending and len(batch) < concurrency:
-                        url, depth = pending.pop(0)
-                        key = _url_key(url)
-                        if key in crawled_keys or depth > max_depth:
-                            continue
-                        crawled_keys.add(key)
-                        batch.append((url, depth))
-                    if not batch:
-                        continue
-
-                    results = await asyncio.gather(
-                        *(_crawl_one_page(context, url, timeout_ms, wait_ms) for url, _depth in batch)
-                    )
-                    for (url, depth), result in zip(batch, results, strict=False):
-                        final_url = result.get("final_url") or url
-                        try:
-                            final_url = normalize_url(str(final_url))
-                        except RestedCaptureError:
-                            final_url = url
-
-                        if _is_same_site(final_url, allowed_site_keys) and _looks_like_page_url(final_url):
-                            final_key = _url_key(final_url)
-                            if final_key not in discovered_keys:
-                                discovered_keys.add(final_key)
-                                discovered.append(final_url)
-
-                        crawl_log.append({
-                            "url": url,
-                            "final_url": final_url,
-                            "depth": depth,
-                            "ok": bool(result.get("ok")),
-                            "status": result.get("status"),
-                            "link_count": len(result.get("links") or []),
-                            "elapsed_ms": result.get("elapsed_ms"),
-                            "error": result.get("error"),
-                        })
-
-                        if depth >= max_depth:
-                            continue
-                        links = same_site_page_urls(final_url, list(result.get("links") or []), allowed_site_keys)
-                        for link in links:
-                            if len(discovered) + len(pending) >= max_urls:
-                                break
-                            key = _url_key(link)
-                            if key in queued_keys or key in crawled_keys:
-                                continue
-                            queued_keys.add(key)
-                            pending.append((link, depth + 1))
-            finally:
-                await context.close()
-        finally:
-            await browser.close()
-
-    return discovered, crawl_log
-
-
-def discover_site_urls(
-    seed_values: list[str],
-    explicit_sitemap_urls: list[str] | None = None,
-    *,
-    max_urls: int = MAX_CRAWL_URLS,
-    max_depth: int = DEFAULT_CRAWL_DEPTH,
-    concurrency: int = DEFAULT_CRAWL_CONCURRENCY,
-    timeout_ms: int = DEFAULT_DISCOVERY_TIMEOUT_MS,
-    wait_ms: int = DEFAULT_DISCOVERY_WAIT_MS,
-    include_sitemaps: bool = True,
-) -> tuple[list[str], dict[str, Any]]:
-    seeds = _dedupe_urls(seed_values)
-    if not seeds:
-        raise RestedCaptureError("add a site URL to crawl")
-
-    max_urls = max(1, min(MAX_CRAWL_URLS, int(max_urls or MAX_CRAWL_URLS)))
-    max_depth = max(0, min(20, int(max_depth or DEFAULT_CRAWL_DEPTH)))
-    concurrency = max(1, min(12, int(concurrency or DEFAULT_CRAWL_CONCURRENCY)))
-    timeout_ms = max(2000, min(60000, int(timeout_ms or DEFAULT_DISCOVERY_TIMEOUT_MS)))
-    wait_ms = max(0, min(5000, int(wait_ms or DEFAULT_DISCOVERY_WAIT_MS)))
-    allowed_site_keys = {_site_host_key(urlparse(url).hostname) for url in seeds}
-
-    sitemap_urls = _dedupe_urls(explicit_sitemap_urls or [])
-    sitemap_sources: list[str] = []
-    sitemap_pages: list[str] = []
-    sitemap_errors: list[dict[str, str]] = []
-    if include_sitemaps:
-        for seed in seeds:
-            sitemap_urls.extend(_sitemap_hints_for_seed(seed))
-        for sitemap_url in _dedupe_urls(sitemap_urls):
-            try:
-                pages = expand_sitemap(sitemap_url, limit=max_urls)
-            except Exception as exc:
-                sitemap_errors.append({"url": sitemap_url, "error": str(exc)})
-                continue
-            filtered = [
-                page for page in pages
-                if _is_same_site(page, allowed_site_keys) and _looks_like_page_url(page)
-            ]
-            if filtered:
-                sitemap_sources.append(sitemap_url)
-                sitemap_pages.extend(filtered)
-
-    crawl_seeds = _dedupe_urls([*seeds, *sitemap_pages])
-    crawled, crawl_log = asyncio.run(
-        _discover_site_urls_async(
-            crawl_seeds,
-            allowed_site_keys,
-            max_urls,
-            max_depth,
-            concurrency,
-            timeout_ms,
-            wait_ms,
-        )
-    )
-    urls = _dedupe_urls([*crawled, *sitemap_pages, *seeds])
-    if len(urls) > max_urls:
-        urls = urls[:max_urls]
-    return urls, {
-        "mode": "site",
-        "seed_urls": seeds,
-        "page_count": len(urls),
-        "max_urls": max_urls,
-        "max_depth": max_depth,
-        "concurrency": concurrency,
-        "include_sitemaps": include_sitemaps,
-        "sitemap_sources": sitemap_sources,
-        "sitemap_errors": sitemap_errors[:20],
-        "crawl_log": crawl_log,
-    }
-
-
 def build_capture_plan(payload: dict[str, Any]) -> tuple[list[str], list[CaptureTarget], dict[str, Any]]:
-    raw_urls = payload.get("urls") or []
-    if isinstance(raw_urls, str):
-        raw_urls = re.split(r"[\r\n,]+", raw_urls)
-    if not isinstance(raw_urls, list):
-        raise RestedCaptureError("urls must be a list or newline text")
+    """Build the capture plan from a pathway map + the built-HTML location.
 
+    Captur'd is map-driven only: the map (pasted/uploaded markdown or verifier
+    JSON, or a file path for CLI convenience) lists every state to capture, and
+    ``base_url`` is where the user's built HTML lives (a local file/folder or a
+    file:// URL). No crawling, no sitemaps, no URL discovery.
+    """
     manifest_path = str(payload.get("manifest_path") or payload.get("manifest") or "").strip()
     map_path = str(payload.get("map_path") or payload.get("map") or "").strip()
-    map_enabled = bool(manifest_path or map_path)
+    # Pasted/uploaded map content — the primary desktop path (no file on disk needed).
+    manifest_text = str(
+        payload.get("pathway_manifest")
+        or payload.get("manifest_text")
+        or payload.get("pathway_map")
+        or ""
+    ).strip()
+    map_text = str(payload.get("map_text") or payload.get("pathway_map_json") or "").strip()
 
-    urls = [str(item).strip() for item in raw_urls if str(item).strip()]
-    # Reject obvious non-URLs up front (e.g. "not-a-url") so we don't queue a
-    # capture that would only fail on DNS deep inside Playwright. The empty-list
-    # case still falls through to the existing "add at least one URL" check.
-    if not map_enabled:
-        for value in urls:
-            if not _is_valid_user_url(value):
-                raise RestedCaptureError(
-                    f"invalid URL (need http/https scheme and host): {value!r}"
-                )
-    sitemap_url = str(payload.get("sitemap_url") or "").strip()
-    crawl_url = str(payload.get("crawl_url") or "").strip()
-    local_path = str(payload.get("local_path") or "").strip()
-    crawl_enabled = bool(payload.get("crawl") or crawl_url) and not map_enabled
-    local_enabled = bool(payload.get("local") or local_path) and not map_enabled
-    discovery: dict[str, Any] = {"mode": "manual", "page_count": 0}
-    if crawl_url and not map_enabled:
-        urls.append(crawl_url)
+    map_inputs = [
+        ("manifest_path", manifest_path),
+        ("map_path", map_path),
+        ("pathway_manifest", manifest_text),
+        ("map_text", map_text),
+    ]
+    supplied = [name for name, value in map_inputs if value]
+    if not supplied:
+        raise RestedCaptureError(
+            "a pathway map is required — paste the manifest markdown (or upload it)"
+        )
+    if len(supplied) > 1:
+        # The map has exactly one source of truth; ambiguous input is a caller
+        # bug, not something to silently pick a winner for.
+        raise RestedCaptureError(
+            "supply exactly one pathway map — got " + ", ".join(supplied)
+        )
+
+    # Captur'd is map-driven only. Any URL/crawl/sitemap key is a stale caller
+    # from before the refocus; fail fast instead of silently ignoring it.
+    stale_keys = [
+        key
+        for key in ("url", "urls", "start_url", "sitemap", "sitemap_url", "crawl", "crawl_depth")
+        if payload.get(key)
+    ]
+    if stale_keys:
+        raise RestedCaptureError(
+            "Captur'd is map-driven only; remove URL/crawl/sitemap input: "
+            + ", ".join(stale_keys)
+        )
+
+    # base_url anchors every pathway to the built HTML; without it there is
+    # nowhere to point the capture.
+    base_url = str(payload.get("base_url") or "").strip()
+    if not base_url:
+        raise RestedCaptureError(
+            "base_url is required — point Captur'd at the built HTML (a file/folder or file:// URL)"
+        )
 
     viewport_ids = payload.get("viewports") or list(DEFAULT_VIEWPORTS)
     if not isinstance(viewport_ids, list):
@@ -858,122 +301,54 @@ def build_capture_plan(payload: dict[str, Any]) -> tuple[list[str], list[Capture
     if not schemes:
         raise RestedCaptureError("choose at least one color scheme")
 
-    if map_enabled:
-        from sunsponge.pathway_map import load_pathway_map, plan_targets_from_map
+    from sunsponge.pathway_map import load_pathway_map, plan_targets_from_map
 
-        pathway_map = load_pathway_map(
-            manifest_path=manifest_path or None,
-            map_path=map_path or None,
-        )
-        base_url = str(payload.get("base_url") or crawl_url or (urls[0] if urls else "")).strip()
-        urls, descriptors = plan_targets_from_map(
-            pathway_map,
-            base_url=base_url,
-            viewports=viewport_ids,
-            schemes=schemes,
-        )
-        discovery = {
-            "mode": "map",
-            "source": "manifest" if manifest_path else "verifier-json",
-            "pathway_count": len(pathway_map.get("pathways") or []),
-            "route_count": len(pathway_map.get("routes") or []),
-            "page_count": len(urls),
-            "target_count": len(descriptors),
-            "base_url": base_url,
-            "manifest_hash": pathway_map.get("hash"),
-        }
-        targets: list[CaptureTarget] = []
-        for desc in descriptors:
-            viewport = DEFAULT_VIEWPORTS.get(desc["viewport_id"])
-            if not viewport:
-                raise RestedCaptureError(f"unknown viewport: {desc['viewport_id']}")
-            if desc["scheme"] not in {"light", "dark", "no-preference"}:
-                raise RestedCaptureError(f"unknown color scheme: {desc['scheme']}")
-            targets.append(
-                CaptureTarget(
-                    index=int(desc["index"]),
-                    url=desc["url"],
-                    viewport_id=desc["viewport_id"],
-                    width=int(viewport["width"]),
-                    height=int(viewport["height"]),
-                    scheme=desc["scheme"],
-                    pathway_id=desc["pathway_id"],
-                    pathway_status=desc["pathway_status"],
-                    pathway_trigger=desc["pathway_trigger"],
-                )
-            )
-        settings = {
-            "format": str(payload.get("format") or "png").lower(),
-            "full_page": bool(payload.get("full_page", True)),
-            "timeout_ms": int(payload.get("timeout_ms") or DEFAULT_TIMEOUT_MS),
-            "wait_ms": int(payload.get("wait_ms") or DEFAULT_WAIT_MS),
-            "concurrency": max(1, min(8, int(payload.get("concurrency") or DEFAULT_CONCURRENCY))),
-            "retries": max(0, min(3, int(payload.get("retries", DEFAULT_RETRIES)))),
-            "retry_timeout_ms": max(
-                int(payload.get("timeout_ms") or DEFAULT_TIMEOUT_MS),
-                int(payload.get("retry_timeout_ms") or DEFAULT_RETRY_TIMEOUT_MS),
-            ),
-            "jpeg_quality": max(40, min(100, int(payload.get("jpeg_quality") or 88))),
-            "capture_count": len(targets),
-            "crawl": False,
-            "local": False,
-            "map": True,
-            "manifest_path": manifest_path or None,
-            "map_path": map_path or None,
-            "page_count": len(urls),
-            "discovery": discovery,
-        }
-        if settings["format"] not in {"png", "jpeg"}:
-            raise RestedCaptureError("format must be png or jpeg")
-        return urls, targets, settings
+    pathway_map = load_pathway_map(
+        manifest_path=manifest_path or None,
+        map_path=map_path or None,
+        manifest_text=manifest_text or None,
+        map_text=map_text or None,
+    )
+    urls, descriptors = plan_targets_from_map(
+        pathway_map,
+        base_url=base_url,
+        viewports=viewport_ids,
+        schemes=schemes,
+    )
+    if len(descriptors) > MAX_TARGETS:
+        raise RestedCaptureError(f"too many capture targets; maximum is {MAX_TARGETS}")
 
-    if local_enabled:
-        urls, discovery = discover_local_html(
-            local_path or (urls[0] if urls else ""),
-            max_urls=int(payload.get("max_pages") or payload.get("max_urls") or MAX_CRAWL_URLS),
-            max_depth=int(payload.get("crawl_depth") or DEFAULT_CRAWL_DEPTH),
-        )
-    elif crawl_enabled:
-        urls, discovery = discover_site_urls(
-            urls,
-            explicit_sitemap_urls=[sitemap_url] if sitemap_url else [],
-            max_urls=int(payload.get("max_pages") or payload.get("max_urls") or MAX_CRAWL_URLS),
-            max_depth=int(payload.get("crawl_depth") or DEFAULT_CRAWL_DEPTH),
-            concurrency=int(payload.get("crawl_concurrency") or DEFAULT_CRAWL_CONCURRENCY),
-            timeout_ms=int(payload.get("discovery_timeout_ms") or DEFAULT_DISCOVERY_TIMEOUT_MS),
-            wait_ms=int(payload.get("discovery_wait_ms") or DEFAULT_DISCOVERY_WAIT_MS),
-            include_sitemaps=bool(payload.get("include_sitemaps", True)),
-        )
-    elif sitemap_url:
-        urls.extend(expand_sitemap(sitemap_url))
-
-    urls = _dedupe_urls(urls)
-
-    if not urls:
-        raise RestedCaptureError("add at least one URL")
-    if len(urls) > MAX_URLS:
-        raise RestedCaptureError(f"too many URLs; maximum is {MAX_URLS}")
-
+    discovery = {
+        "mode": "map",
+        "source": "manifest" if (manifest_path or manifest_text) else "verifier-json",
+        "pathway_count": len(pathway_map.get("pathways") or []),
+        "route_count": len(pathway_map.get("routes") or []),
+        "page_count": len(urls),
+        "target_count": len(descriptors),
+        "base_url": base_url,
+        "manifest_hash": pathway_map.get("hash"),
+    }
     targets: list[CaptureTarget] = []
-    for url_index, url in enumerate(urls, start=1):
-        for viewport_id in viewport_ids:
-            viewport = DEFAULT_VIEWPORTS.get(viewport_id)
-            if not viewport:
-                raise RestedCaptureError(f"unknown viewport: {viewport_id}")
-            for scheme in schemes:
-                if scheme not in {"light", "dark", "no-preference"}:
-                    raise RestedCaptureError(f"unknown color scheme: {scheme}")
-                targets.append(
-                    CaptureTarget(
-                        index=url_index,
-                        url=url,
-                        viewport_id=viewport_id,
-                        width=int(viewport["width"]),
-                        height=int(viewport["height"]),
-                        scheme=scheme,
-                    )
-                )
-
+    for desc in descriptors:
+        viewport = DEFAULT_VIEWPORTS.get(desc["viewport_id"])
+        if not viewport:
+            raise RestedCaptureError(f"unknown viewport: {desc['viewport_id']}")
+        if desc["scheme"] not in {"light", "dark", "no-preference"}:
+            raise RestedCaptureError(f"unknown color scheme: {desc['scheme']}")
+        targets.append(
+            CaptureTarget(
+                index=int(desc["index"]),
+                url=desc["url"],
+                viewport_id=desc["viewport_id"],
+                width=int(viewport["width"]),
+                height=int(viewport["height"]),
+                scheme=desc["scheme"],
+                pathway_id=desc["pathway_id"],
+                pathway_status=desc["pathway_status"],
+                pathway_trigger=desc["pathway_trigger"],
+                trigger_selector=desc.get("selector", ""),
+            )
+        )
     settings = {
         "format": str(payload.get("format") or "png").lower(),
         "full_page": bool(payload.get("full_page", True)),
@@ -987,10 +362,11 @@ def build_capture_plan(payload: dict[str, Any]) -> tuple[list[str], list[Capture
         ),
         "jpeg_quality": max(40, min(100, int(payload.get("jpeg_quality") or 88))),
         "capture_count": len(targets),
-        "crawl": crawl_enabled,
-        "local": local_enabled,
+        "map": True,
+        "manifest_path": manifest_path or None,
+        "map_path": map_path or None,
         "page_count": len(urls),
-        "discovery": {**discovery, "page_count": len(urls)},
+        "discovery": discovery,
     }
     if settings["format"] not in {"png", "jpeg"}:
         raise RestedCaptureError("format must be png or jpeg")
@@ -1028,6 +404,30 @@ async def _settle_page(page: Any, wait_ms: int) -> None:
     await page.wait_for_timeout(wait_ms)
 
 
+async def _apply_trigger(page: Any, selector: str, wait_ms: int) -> bool:
+    """Click the pathway's trigger to reach its rested state, then settle.
+
+    Returns True if the trigger fired. A missing/invalid selector is not an
+    error — we just shoot the loaded state. This is what turns a map of buttons
+    into distinct rested-state shots instead of N copies of the same page.
+    """
+    sel = (selector or "").strip()
+    if not sel:
+        return False
+    try:
+        el = await page.query_selector(sel)
+        if el is None:
+            return False
+        await el.scroll_into_view_if_needed(timeout=2000)
+        await el.click(timeout=4000)
+        # let the resulting state paint/animate in, then re-settle to rest
+        await page.wait_for_timeout(max(250, min(wait_ms, 1200)))
+        await _settle_page(page, wait_ms)
+        return True
+    except Exception:
+        return False
+
+
 def _target_context_key(target: CaptureTarget) -> tuple[str, str, int, int, str]:
     parsed = urlparse(target.url)
     if parsed.scheme == "file":
@@ -1053,6 +453,10 @@ async def _capture_one(context: Any, target: CaptureTarget, settings: dict[str, 
             except Exception:
                 pass
             await _settle_page(page, settings["wait_ms"])
+            # Drive to the rested state the pathway describes (open the menu /
+            # modal / panel) before shooting — otherwise every pathway on a
+            # single-view app collapses to the same screenshot.
+            trigger_fired = await _apply_trigger(page, target.trigger_selector, settings["wait_ms"])
             screenshot_kwargs: dict[str, Any] = {
                 "path": str(path),
                 "type": settings["format"],
@@ -1072,6 +476,8 @@ async def _capture_one(context: Any, target: CaptureTarget, settings: dict[str, 
                 "height": target.height,
                 "pathway_id": target.pathway_id or None,
                 "pathway_status": target.pathway_status or None,
+                "trigger_selector": target.trigger_selector or None,
+                "trigger_fired": trigger_fired,
                 "status": "ok",
                 "file": path.name,
                 "bytes": stat.st_size,

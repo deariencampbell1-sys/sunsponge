@@ -14,7 +14,7 @@
     return payload;
   }
 
-  window.SunSponge = {
+  window.Capturd = {
     async startRestedCapture(body) {
       return fetchJson("/api/rested-captures/jobs", { method: "POST", body });
     },
@@ -31,11 +31,13 @@
       const blob = await res.blob();
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = fileName || "sunsponge-captures.zip";
+      link.download = fileName || "capturd-captures.zip";
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(link.href);
     },
   };
+  // Back-compat alias for any older reference.
+  window.SunSponge = window.Capturd;
 })();

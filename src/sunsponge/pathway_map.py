@@ -43,15 +43,23 @@ def load_pathway_map(
     *,
     manifest_path: str | Path | None = None,
     map_path: str | Path | None = None,
+    manifest_text: str | None = None,
+    map_text: str | None = None,
 ) -> dict[str, Any]:
-    """Load a pathway map from markdown (--manifest) or verifier JSON (--map)."""
+    """Load a pathway map. PASTED text is the primary path (Captur'd is a desktop
+    tool — the user pastes/uploads the manifest their agent produced); file paths
+    are the CLI convenience. manifest_* = markdown pathway-manifest;
+    map_* = verifier JSON."""
+    if manifest_text and manifest_text.strip():
+        return parse_manifest_text(manifest_text, source="<pasted manifest>")
+    if map_text and map_text.strip():
+        return parse_verifier_json_text(map_text, source="<pasted map>")
     if manifest_path and map_path:
-        raise RestedCaptureError("provide manifest_path or map_path, not both")
+        raise RestedCaptureError("provide a manifest or a map, not both")
     if manifest_path:
         path = Path(manifest_path)
         if not path.is_file():
-            # Name the offending input but never echo the path itself, so the
-            # HTTP 400 body / server log cannot leak absolute server paths.
+            # Name the offending input but never echo the path itself.
             raise RestedCaptureError(
                 "manifest_path does not exist or is not a readable file"
             )
@@ -63,7 +71,9 @@ def load_pathway_map(
                 "map_path does not exist or is not a readable file"
             )
         return parse_verifier_json(path)
-    raise RestedCaptureError("manifest_path or map_path is required for map mode")
+    raise RestedCaptureError(
+        "a pathway map is required — paste the manifest markdown (or pass a file)"
+    )
 
 
 def parse_manifest_md(manifest_path: Path) -> dict[str, Any]:
@@ -73,19 +83,26 @@ def parse_manifest_md(manifest_path: Path) -> dict[str, Any]:
         raise RestedCaptureError(
             "manifest_path could not be read as UTF-8 text"
         ) from exc
+    return parse_manifest_text(raw, source=str(manifest_path))
+
+
+def parse_manifest_text(raw: str, source: str = "<pasted manifest>") -> dict[str, Any]:
+    if not (raw or "").strip():
+        raise RestedCaptureError("pathway manifest is empty")
+    now = datetime.now(timezone.utc).isoformat()
     sections = _split_sections(raw)
     return {
         "raw": raw,
         "hash": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
-        "file": str(manifest_path),
-        "parsedAt": datetime.now(timezone.utc).isoformat(),
+        "file": source,
+        "parsedAt": now,
         "summary": _extract_summary(sections),
         "pathways": _extract_pathways(sections),
         "routes": _extract_routes(sections),
         "plugins": _extract_plugins(sections),
         "suspicious": _extract_suspicious(sections),
         "antiPatterns": _extract_anti_patterns(sections),
-        "metadata": {"file": str(manifest_path), "parsedAt": datetime.now(timezone.utc).isoformat()},
+        "metadata": {"file": source, "parsedAt": now},
     }
 
 
@@ -96,11 +113,15 @@ def parse_verifier_json(map_path: Path) -> dict[str, Any]:
         raise RestedCaptureError(
             "map_path could not be read as UTF-8 text"
         ) from exc
+    return parse_verifier_json_text(text, source=str(map_path))
+
+
+def parse_verifier_json_text(text: str, source: str = "<pasted map>") -> dict[str, Any]:
     try:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
         raise RestedCaptureError(
-            "map_path is not valid verifier JSON"
+            "pathway map is not valid verifier JSON"
         ) from exc
     if not isinstance(data, dict):
         raise RestedCaptureError("verifier map JSON must be an object")
@@ -146,7 +167,7 @@ def parse_verifier_json(map_path: Path) -> dict[str, Any]:
     return {
         "raw": None,
         "hash": hashlib.sha256(text.encode("utf-8")).hexdigest(),
-        "file": str(map_path),
+        "file": source,
         "parsedAt": datetime.now(timezone.utc).isoformat(),
         "summary": data.get("manifest_summary") or data.get("summary") or {},
         "pathways": pathways,
@@ -155,7 +176,7 @@ def parse_verifier_json(map_path: Path) -> dict[str, Any]:
         "suspicious": [],
         "antiPatterns": [],
         "metadata": {
-            "file": str(map_path),
+            "file": source,
             "parsedAt": datetime.now(timezone.utc).isoformat(),
             "version": data.get("version"),
             "repo": data.get("repo"),
@@ -282,7 +303,8 @@ def _extract_pathways(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 pathways.append({
                     "id": pid,
                     "location": location,
-                    "trigger": (row_map.get("trigger") or row_map.get("selector") or row_map.get("href") or "").strip(),
+                    "trigger": (row_map.get("trigger") or row_map.get("href") or "").strip(),
+                    "selector": (row_map.get("selector") or row_map.get("css") or row_map.get("css selector") or "").strip().strip("`"),
                     "declaredIntent": (
                         row_map.get("declared intent")
                         or row_map.get("declared_intent")
@@ -549,6 +571,7 @@ def plan_targets_from_map(
                     "pathway_id": str(pathway.get("id") or f"pathway-{index}"),
                     "pathway_status": status,
                     "pathway_trigger": trigger,
+                    "selector": str(pathway.get("selector") or "").strip(),
                     "pathway_location": str(pathway.get("location") or ""),
                     "pathway_handler": str(pathway.get("handler") or ""),
                     "pathway_downstream": str(pathway.get("downstreamCall") or pathway.get("downstream_call") or ""),

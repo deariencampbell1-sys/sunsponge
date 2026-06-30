@@ -1,4 +1,9 @@
-"""Standalone FastAPI service for SunSponge website capture jobs."""
+"""Local FastAPI service for RHOBEAR Captur'd rested-state capture jobs.
+
+Captur'd is a desktop tool: it binds to localhost and is map-driven only — every
+job is fed a pathway map (pasted/uploaded markdown or verifier JSON) plus the
+local location of the user's built HTML. No URL fetching, crawling, or sitemaps.
+"""
 
 from __future__ import annotations
 
@@ -75,18 +80,16 @@ def _shot_image_ref(base: str, job_id: str, file: str) -> str:
 
 
 class RestedCaptureRequest(BaseModel):
-    urls: list[str] | str = Field(default_factory=list)
-    sitemap_url: str | None = None
-    crawl: bool = False
-    crawl_url: str | None = None
-    local: bool = False
-    local_path: str | None = None
-    crawl_depth: int = 8
-    crawl_concurrency: int = 6
-    max_pages: int = 1000
-    include_sitemaps: bool = True
-    discovery_timeout_ms: int = 15000
-    discovery_wait_ms: int = 150
+    # Map-driven only. Paste/upload the pathway map (markdown via pathway_manifest,
+    # verifier JSON via map_text) or pass a file path (CLI convenience). base_url is
+    # where the user's built HTML lives (a local file/folder or file:// URL).
+    # Captur'd is a LOCAL desktop tool: reading the user's own local files and
+    # exporting shots to a local folder are CORE features, never threats.
+    pathway_manifest: str | None = None
+    map_text: str | None = None
+    manifest_path: str | None = None
+    map_path: str | None = None
+    base_url: str | None = None
     viewports: list[str] = Field(default_factory=lambda: ["desktop", "tablet", "mobile"])
     schemes: list[str] = Field(default_factory=lambda: ["light", "dark"])
     format: Literal["png", "jpeg"] = "png"
@@ -100,9 +103,6 @@ class RestedCaptureRequest(BaseModel):
     export_dir: str | None = None
     export_mode: Literal["zip", "folder"] = "zip"
     name: str | None = None
-    manifest_path: str | None = None
-    map_path: str | None = None
-    base_url: str | None = None
 
 
 def _request_payload(model: BaseModel) -> dict[str, Any]:
@@ -112,12 +112,12 @@ def _request_payload(model: BaseModel) -> dict[str, Any]:
 
 
 class CaptureRequestV1(BaseModel):
-    """Agent-control capture request — the SunSponge slice of the Family API Contract."""
+    """Agent-control capture request — the Captur'd slice of the Family API Contract."""
 
     model_config = ConfigDict(extra="ignore")
 
-    url: str | list[str] | None = None
-    sitemap: str | None = None
+    pathway_map: str | None = None  # pasted pathway-manifest markdown / verifier JSON — required
+    base_url: str | None = None     # where the built HTML the map refers to lives (local)
     viewports: list[str] | None = None
     color_schemes: list[str] | None = None
     workspace_id: str | None = None
@@ -126,34 +126,28 @@ class CaptureRequestV1(BaseModel):
 
 
 def _build_v1_payload(body: CaptureRequestV1) -> dict[str, Any]:
-    """Translate the contract request into the engine's existing payload shape.
+    """Translate the contract request into the engine's payload shape.
 
     Reuses build_capture_plan() unchanged — the API is a thin envelope over the
-    same capture logic the CLI and UI already use.
+    same map-driven capture logic the CLI and UI use. A pasted pathway map is
+    required; Captur'd never fetches URLs.
     """
     workspace_id = (body.workspace_id or "").strip()
     if not workspace_id:
         raise RestedCaptureError("workspace_id is required")
 
-    urls_field = body.url
-    urls_list: list[str] = []
-    if isinstance(urls_field, list):
-        urls_list = [u for u in (str(u).strip() for u in urls_field) if u]
-    elif isinstance(urls_field, str) and urls_field.strip():
-        urls_list = [urls_field.strip()]
-    sitemap = (body.sitemap or "").strip()
-    has_url = bool(urls_list)
-    has_sitemap = bool(sitemap)
-    if not has_url and not has_sitemap:
-        raise RestedCaptureError("provide 'url' or 'sitemap'")
-    if has_url and has_sitemap:
-        raise RestedCaptureError("provide 'url' or 'sitemap', not both")
+    pathway_map = (body.pathway_map or "").strip()
+    if not pathway_map:
+        raise RestedCaptureError(
+            "a pathway map is required — paste the manifest markdown (or upload it)"
+        )
 
-    payload: dict[str, Any] = {"workspace_id": workspace_id}
-    if has_sitemap:
-        payload["sitemap_url"] = sitemap
-    else:
-        payload["urls"] = urls_list
+    payload: dict[str, Any] = {
+        "workspace_id": workspace_id,
+        "pathway_manifest": pathway_map,
+    }
+    if (body.base_url or "").strip():
+        payload["base_url"] = body.base_url.strip()
     if body.viewports is not None:
         payload["viewports"] = body.viewports
     if body.color_schemes is not None:
@@ -164,7 +158,7 @@ def _build_v1_payload(body: CaptureRequestV1) -> dict[str, Any]:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="SunSponge", version="0.1.0")
+    app = FastAPI(title="RHOBEAR Captur'd", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -253,6 +247,9 @@ def create_app() -> FastAPI:
         return _ok({
             "job_id": job_id,
             "status": job.get("status"),
+            # Surface the top-level job message so a failure that produced no
+            # per-shot results (e.g. Playwright missing, bad map) isn't blank.
+            "message": job.get("message"),
             "total": job.get("total", 0),
             "completed": job.get("completed", 0),
             "failed": job.get("failed", 0),
