@@ -8,12 +8,12 @@
 <meta property="og:title" content="RHOBEAR Captur'd — Rested-State Capture" />
 <meta property="og:description" content="Portfolio-quality screenshots of your own built UI, every state, every viewport, light and dark, one ZIP. Desktop. No URLs. No AI. MIT." />
 <style>
-  /* ---- brand tokens (Captur'd: deep navy + sun-amber — sibling to RHOBEAR Designs) ---- */
+  /* ---- brand tokens (Captur'd: deep navy + electric-blue — sibling to RHOBEAR Designs) ---- */
   :root{
     --bg:#11111d; --bg-2:#161627; --panel:#1f1f33; --line:#2d2d45;
     --ink:#ECEAF2; --ink-2:#A6A3B8; --ink-3:#6f6c8c;
     --navy:#1A1A2E;
-    --amber:#F5A524; --amber-deep:#D98A12; --amber-soft:#ffd27a;
+    --brand:#3D8BFF; --brand-deep:#2E6FE0; --brand-soft:#9cc4ff;
     --ui:"Segoe UI",system-ui,-apple-system,Helvetica,Arial,sans-serif;
     --mono:"SFMono-Regular",ui-monospace,"Cascadia Mono","JetBrains Mono",Consolas,monospace;
     --maxw:1180px;
@@ -28,11 +28,11 @@
   main,header,footer{position:relative;z-index:1}
   .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
   a{color:inherit;text-decoration:none}
-  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--amber);font-weight:600}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--brand);font-weight:600}
   h1,h2,h3{margin:0;line-height:1.05;letter-spacing:-.02em;font-weight:700;text-wrap:balance}
   p{margin:0;text-wrap:pretty}
   .muted{color:var(--ink-2)}
-  code{font-family:var(--mono);font-size:.92em;color:var(--amber-soft)}
+  code{font-family:var(--mono);font-size:.92em;color:var(--brand-soft)}
 
   /* nav */
   header{padding:22px 0}
@@ -41,22 +41,22 @@
   .nav nav{display:flex;gap:26px;font-size:14px;color:var(--ink-2)}
   .nav nav a:hover{color:var(--ink)}
   .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:11px;font-weight:600;font-size:15px;transition:transform .15s ease,background .15s ease,border-color .15s}
-  .btn-primary{background:var(--amber);color:#1a1205}
-  .btn-primary:hover{background:var(--amber-deep);transform:translateY(-1px)}
+  .btn-primary{background:var(--brand);color:#fff}
+  .btn-primary:hover{background:var(--brand-deep);transform:translateY(-1px)}
   .btn-ghost{border:1px solid var(--line);color:var(--ink)}
-  .btn-ghost:hover{border-color:var(--amber);transform:translateY(-1px)}
+  .btn-ghost:hover{border-color:var(--brand);transform:translateY(-1px)}
 
-  /* bear mark — the canonical RHOBEAR constellation bear, tinted Captur'd amber */
+  /* bear mark — the canonical RHOBEAR constellation bear, tinted Captur'd blue */
   .bear-chip{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;flex:none;
-    background:radial-gradient(120% 120% at 30% 20%, rgba(245,165,36,.18), transparent 60%), var(--navy);
-    border:1px solid rgba(245,165,36,.30);box-shadow:0 0 20px rgba(245,165,36,.16)}
-  .bear-img{width:78%;height:78%;display:block;object-fit:contain;filter:hue-rotate(-145deg) saturate(1.45) brightness(1.05)}
+    background:radial-gradient(120% 120% at 30% 20%, rgba(61,139,255,.18), transparent 60%), var(--navy);
+    border:1px solid rgba(61,139,255,.30);box-shadow:0 0 20px rgba(61,139,255,.16)}
+  .bear-img{width:78%;height:78%;display:block;object-fit:contain;filter:hue-rotate(50deg) saturate(1.45) brightness(1.05)}
   footer .bear-chip{width:30px;height:30px;border-radius:9px}
 
   /* hero */
   .hero{padding:78px 0 36px;display:grid;grid-template-columns:1.05fr .95fr;gap:54px;align-items:center}
   .hero h1{font-size:clamp(40px,6vw,68px)}
-  .hero h1 .alt{color:var(--amber);font-style:normal}
+  .hero h1 .alt{color:var(--brand);font-style:normal}
   .lede{margin-top:22px;font-size:19px;color:var(--ink-2);max-width:34ch}
   .cta{margin-top:30px;display:flex;gap:14px;flex-wrap:wrap}
   .meta{margin-top:22px;display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:12.5px;color:var(--ink-3);letter-spacing:.04em}
@@ -66,19 +66,19 @@
   .mock{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--bg-2);box-shadow:0 30px 80px -40px #000}
   .mock .bar{display:flex;align-items:center;gap:7px;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
   .mock .bar i{width:11px;height:11px;border-radius:50%;background:var(--line);display:block}
-  .mock .bar i:first-child{background:var(--amber)}
+  .mock .bar i:first-child{background:var(--brand)}
   .mock .bar .tag{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
   .mock .grid{padding:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
   .shot{border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--navy);aspect-ratio:4/3;display:flex;flex-direction:column}
-  .shot .h{height:8px;background:linear-gradient(90deg,var(--amber),transparent);opacity:.8}
+  .shot .h{height:8px;background:linear-gradient(90deg,var(--brand),transparent);opacity:.8}
   .shot .b{flex:1;padding:9px;display:flex;flex-direction:column;gap:5px}
   .shot .ln{height:5px;border-radius:3px;background:var(--line)}
   .shot .ln.w1{width:80%}.shot .ln.w2{width:62%}.shot .ln.w3{width:71%}
-  .shot.cap{outline:2px solid var(--amber);outline-offset:-2px;box-shadow:0 0 22px rgba(245,165,36,.25)}
+  .shot.cap{outline:2px solid var(--brand);outline-offset:-2px;box-shadow:0 0 22px rgba(61,139,255,.25)}
   .shot.dark{background:#0a0a12}
-  .shot .cap-tag{font-family:var(--mono);font-size:8.5px;color:var(--amber);padding:0 9px 8px}
+  .shot .cap-tag{font-family:var(--mono);font-size:8.5px;color:var(--brand);padding:0 9px 8px}
   .mock .foot{padding:11px 14px;border-top:1px solid var(--line);background:var(--panel);display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;color:var(--ink-2)}
-  .mock .foot .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber);flex:none}
+  .mock .foot .dot{width:8px;height:8px;border-radius:50%;background:var(--brand);box-shadow:0 0 10px var(--brand);flex:none}
 
   /* sections */
   section{padding:64px 0}
@@ -89,10 +89,10 @@
   /* bento */
   .bento{margin-top:40px;display:grid;grid-template-columns:repeat(6,1fr);gap:16px}
   .card{border:1px solid var(--line);border-radius:15px;background:linear-gradient(180deg,var(--bg-2),var(--bg));padding:26px;transition:border-color .2s,transform .2s}
-  .card:hover{border-color:var(--amber-deep);transform:translateY(-3px)}
+  .card:hover{border-color:var(--brand-deep);transform:translateY(-3px)}
   .card h3{font-size:20px;margin-bottom:10px}
   .card p{color:var(--ink-2);font-size:15.5px}
-  .card .k{font-family:var(--mono);font-size:12px;color:var(--amber);letter-spacing:.1em;text-transform:uppercase}
+  .card .k{font-family:var(--mono);font-size:12px;color:var(--brand);letter-spacing:.1em;text-transform:uppercase}
   .c-a{grid-column:span 4}.c-b{grid-column:span 2}
   .c-c{grid-column:span 2}.c-d{grid-column:span 2}.c-e{grid-column:span 2}
   .c-wide{grid-column:span 6;display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:center}
@@ -100,19 +100,19 @@
   /* steps */
   .steps{margin-top:40px;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:15px;overflow:hidden}
   .step{background:var(--bg-2);padding:26px 22px}
-  .step .n{font-family:var(--mono);color:var(--amber);font-size:13px}
+  .step .n{font-family:var(--mono);color:var(--brand);font-size:13px}
   .step h3{font-size:17px;margin:12px 0 8px}
   .step p{font-size:14.5px;color:var(--ink-2)}
 
   /* pricing */
   .price-wrap{margin-top:38px;display:flex;justify-content:center}
-  .price-card{border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,var(--bg-2),var(--bg));padding:38px 42px;max-width:440px;width:100%;box-shadow:0 30px 80px -50px #000,0 0 0 1px rgba(245,165,36,.06);text-align:center}
+  .price-card{border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,var(--bg-2),var(--bg));padding:38px 42px;max-width:440px;width:100%;box-shadow:0 30px 80px -50px #000,0 0 0 1px rgba(61,139,255,.06);text-align:center}
   .price-card .amt{font-size:64px;font-weight:800;letter-spacing:-.03em;line-height:1;color:var(--ink)}
   .price-card .amt small{font-size:19px;color:var(--ink-2);font-weight:600}
-  .price-card .sub{margin-top:10px;color:var(--amber);font-family:var(--mono);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase}
+  .price-card .sub{margin-top:10px;color:var(--brand);font-family:var(--mono);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase}
   .price-card ul{list-style:none;margin:24px 0 0;padding:0;text-align:left;display:grid;gap:11px}
   .price-card li{display:flex;gap:10px;color:var(--ink-2);font-size:15px}
-  .price-card li::before{content:"✓";color:var(--amber);font-weight:800}
+  .price-card li::before{content:"✓";color:var(--brand);font-weight:800}
   .price-card .btn{margin-top:28px;width:100%;justify-content:center}
 
   /* closing */
@@ -124,7 +124,7 @@
   footer{border-top:1px solid var(--line);padding:34px 0;color:var(--ink-3);font-size:14px}
   .foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;align-items:center}
   .eco{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
-  .eco a{color:var(--ink-3)}.eco a:hover{color:var(--amber)}
+  .eco a{color:var(--ink-3)}.eco a:hover{color:var(--brand)}
 
   .reveal{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease}
   .reveal.in{opacity:1;transform:none}
@@ -198,7 +198,7 @@
       <div class="card c-a reveal">
         <div class="k">Map-driven</div>
         <h3>It knows what to shoot from your map</h3>
-        <p>Ask your agent to map out the pathways of what it built. Paste that Markdown manifest (or a <a href="https://github.com/deariencampbell1-sys/rhobear-verifier" style="color:var(--amber)">rhobear-verifier</a> JSON report) into Captur'd — the map lists every state, so the run is deterministic and fast. No URLs, no crawling, no waiting an hour.</p>
+        <p>Ask your agent to map out the pathways of what it built. Paste that Markdown manifest (or a <a href="https://github.com/deariencampbell1-sys/rhobear-verifier" style="color:var(--brand)">rhobear-verifier</a> JSON report) into Captur'd — the map lists every state, so the run is deterministic and fast. No URLs, no crawling, no waiting an hour.</p>
       </div>
       <div class="card c-b reveal">
         <div class="k">Viewports</div>
@@ -251,7 +251,7 @@
     <div class="sec-head reveal">
       <span class="eyebrow">Open source</span>
       <h2>MIT, runs on your machine, sibling to RHOBEAR Designs.</h2>
-      <p>A local FastAPI service and a small static UI over a Playwright capture engine — that's the whole thing. Same deep-navy canvas as Designs, a sun-amber accent instead of red. Clone it, fork it, wire it into your own pipeline. Built something in <a href="https://github.com/deariencampbell1-sys/rhobear-designs" style="color:var(--amber)">RHOBEAR Designs</a>? Captur'd shoots it for your portfolio.</p>
+      <p>A local FastAPI service and a small static UI over a Playwright capture engine — that's the whole thing. Same deep-navy canvas as Designs, an electric-blue accent instead of red. Clone it, fork it, wire it into your own pipeline. Built something in <a href="https://github.com/deariencampbell1-sys/rhobear-designs" style="color:var(--brand)">RHOBEAR Designs</a>? Captur'd shoots it for your portfolio.</p>
     </div>
     <div class="cta reveal" style="margin-top:28px">
       <a class="btn btn-primary" href="https://github.com/deariencampbell1-sys/sunsponge">Clone on GitHub</a>
@@ -304,11 +304,11 @@
 </footer>
 
 <script>
-  // starfield — quiet navy, amber sparks
+  // starfield — quiet navy, blue sparks
   (function(){
     var c=document.getElementById('stars'),x=c.getContext('2d'),s=[],w,h;
     function size(){w=c.width=innerWidth;h=c.height=innerHeight;s=[];var n=Math.min(140,(w*h)/16000);for(var i=0;i<n;i++)s.push({x:Math.random()*w,y:Math.random()*h,r:Math.random()*1.3+.2,a:Math.random()*.6+.15,d:Math.random()*.4+.1});}
-    function draw(){x.clearRect(0,0,w,h);for(var i=0;i<s.length;i++){var p=s[i];p.y+=p.d*.12;if(p.y>h)p.y=0;x.globalAlpha=p.a;x.fillStyle=i%9===0?'#F5A524':'#c8c4dc';x.beginPath();x.arc(p.x,p.y,p.r,0,6.28);x.fill();}requestAnimationFrame(draw);}
+    function draw(){x.clearRect(0,0,w,h);for(var i=0;i<s.length;i++){var p=s[i];p.y+=p.d*.12;if(p.y>h)p.y=0;x.globalAlpha=p.a;x.fillStyle=i%9===0?'#3D8BFF':'#c8c4dc';x.beginPath();x.arc(p.x,p.y,p.r,0,6.28);x.fill();}requestAnimationFrame(draw);}
     size();draw();addEventListener('resize',size);
   })();
   // scroll reveal
