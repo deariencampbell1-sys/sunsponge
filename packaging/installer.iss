@@ -12,6 +12,8 @@
 #define AppURL "https://github.com/deariencampbell1-sys/sunsponge"
 
 [Setup]
+; Inno resolves relative paths from the .iss dir (packaging/); point them at the repo root.
+SourceDir=..
 AppId={{B7A3F2C1-9D4E-4A6B-8C5F-CAP7URD00001}
 AppName={#AppName}
 AppVersion={#AppVersion}
