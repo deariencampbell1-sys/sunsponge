@@ -132,7 +132,7 @@ function RestedCaptureView() {
   return (
     <div className="capture">
       <div className="capture__top">
-        <div>
+        <div className="capture__heading">
           <div className="capture__eyebrow"><IconCamera size={14} /> RESTED-STATE CAPTURE</div>
           <div className="capture__brand">
             <img className="capture__brand-mark" src="/assets/rhobear-logo.png" alt="Rhobear" />
