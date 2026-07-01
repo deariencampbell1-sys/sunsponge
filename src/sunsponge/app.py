@@ -136,13 +136,35 @@ def create_app() -> FastAPI:
                 status_code=500, content={"ok": False, "error": "failed to start recorder"}
             )
 
-        # Start the async recorder in a background thread. We deliberately
-        # don't await it — the browser must stay open until /stop is called.
+        # Start the async recorder in a background thread with its own
+        # event loop. The loop must stay alive after start() completes
+        # so expose_function callbacks (JS → Python) and stop() teardown
+        # work. The loop is parked via run_forever() and stopped from
+        # within _stop_async() when /api/demos/stop fires.
         try:
+            import asyncio as _asyncio
             import threading as _threading
 
+            def _spawn() -> None:
+                loop = _asyncio.new_event_loop()
+                _asyncio.set_event_loop(loop)
+                # Stash the loop BEFORE start() so stop() can find it
+                # even if start() hasn't completed yet.
+                recorder._loop = loop
+                try:
+                    loop.run_until_complete(recorder.start())
+                    # Park — the loop stays alive until stop() calls
+                    # _stop_async which schedules loop.stop().
+                    loop.run_forever()
+                except Exception:
+                    logger.exception("recorder thread crashed for %s", session_id)
+                # Do NOT close the loop here — stop() still needs it to
+                # retrieve the future result. The loop is stopped from
+                # inside _stop_async and will be garbage-collected
+                # when the daemon thread exits.
+
             _t = _threading.Thread(
-                target=lambda: run_async(recorder.start()),
+                target=_spawn,
                 name=f"demo-start-{session_id}",
                 daemon=True,
             )

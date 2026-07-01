@@ -386,12 +386,18 @@ class DemoRecorder:
 
         Safe to call from the FastAPI worker thread: we hand the actual
         teardown off to the recorder's own loop via run_coroutine_threadsafe.
+        The loop is stopped from the calling thread AFTER the future resolves
+        — calling loop.stop() from inside _stop_async would kill the loop
+        before future.result() receives its callback.
         """
         if self._loop is None or self._capture_task is None:
             raise DemoRecorderError("recorder was never started")
         self._stopped.set()
         future = asyncio.run_coroutine_threadsafe(self._stop_async(), self._loop)
-        return future.result(timeout=30.0)
+        result = future.result(timeout=30.0)
+        # Stop the parked loop now that we have the result.
+        self._loop.call_soon_threadsafe(self._loop.stop)
+        return result
 
     async def _stop_async(self) -> DemoSpec:
         """Actual teardown — runs inside the recorder's event loop."""
