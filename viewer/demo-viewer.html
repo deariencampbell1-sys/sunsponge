@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DemoForge Viewer</title>
+  <style>
+    /* ------------------------------------------------------------------ */
+    /*  Reset + base                                                       */
+    /* ------------------------------------------------------------------ */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; background: #0a0c10; color: #e8eaed;
+                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                              "Helvetica Neue", Arial, sans-serif;
+                 overflow: hidden; }
+    button { font: inherit; color: inherit; background: transparent; border: 0;
+             cursor: pointer; padding: 0; }
+    button:focus-visible { outline: 2px solid #4f8cff; outline-offset: 2px; border-radius: 4px; }
+
+    /* ------------------------------------------------------------------ */
+    /*  Viewer shell                                                       */
+    /* ------------------------------------------------------------------ */
+    #viewer {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      background: #0a0c10;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Screenshot layer                                                   */
+    /* ------------------------------------------------------------------ */
+    #screenshot-container {
+      position: relative; flex: 1 1 auto;
+      overflow: hidden;
+      background: #0a0c10;
+    }
+    #screenshot {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: contain;
+      opacity: 0;
+      transition: opacity 300ms ease-in-out;
+      pointer-events: none;
+    }
+    #screenshot.visible { opacity: 1; }
+
+    #hotspot-layer {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      overflow: visible;
+    }
+    #hotspot {
+      pointer-events: auto;
+      cursor: pointer;
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: hotspot-pulse 1.2s ease-in-out infinite;
+    }
+    #hotspot-ring {
+      fill: none;
+      stroke: #ff3b30;
+      stroke-width: 2;
+      pointer-events: auto;
+      cursor: pointer;
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: hotspot-ring 1.2s ease-in-out infinite;
+    }
+    @keyframes hotspot-pulse {
+      0%, 100% { transform: scale(1);   opacity: 0.85; }
+      50%      { transform: scale(1.3); opacity: 0.30; }
+    }
+    @keyframes hotspot-ring {
+      0%   { transform: scale(0.6); opacity: 1; }
+      100% { transform: scale(2.4); opacity: 0; }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Cursor                                                             */
+    /* ------------------------------------------------------------------ */
+    #cursor {
+      position: absolute;
+      width: 18px; height: 24px;
+      pointer-events: none;
+      transform: translate(-2px, -2px);
+      opacity: 0;
+      transition: opacity 120ms ease-out;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.55));
+      z-index: 5;
+    }
+    #cursor.visible { opacity: 1; }
+
+    /* ------------------------------------------------------------------ */
+    /*  Controls (video-player chrome)                                     */
+    /* ------------------------------------------------------------------ */
+    #controls {
+      flex: 0 0 auto;
+      background: linear-gradient(to top, rgba(8,10,14,0.95), rgba(8,10,14,0.75));
+      padding: 12px 18px 14px;
+      opacity: 1;
+      transition: opacity 280ms ease;
+    }
+    #controls.hidden { opacity: 0; pointer-events: none; }
+
+    #progress-bar {
+      display: flex; gap: 3px;
+      margin-bottom: 10px;
+    }
+    .progress-segment {
+      flex: 1 1 0;
+      height: 4px;
+      background: rgba(255,255,255,0.18);
+      border-radius: 2px;
+      border: 0;
+      padding: 0;
+      cursor: pointer;
+      transition: background 160ms ease, height 160ms ease;
+    }
+    .progress-segment:hover { height: 6px; }
+    .progress-segment.done   { background: rgba(255,255,255,0.55); }
+    .progress-segment.current{ background: #4f8cff; height: 6px; }
+    .progress-segment:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+    #info-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 6px;
+      min-height: 22px;
+    }
+    #step-info {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: #cfd3d8;
+      font-variant-numeric: tabular-nums;
+    }
+    #annotation {
+      font-size: 13px;
+      color: #9aa0a6;
+      text-align: right;
+      flex: 1 1 auto;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0;
+      transition: opacity 200ms ease;
+    }
+    #annotation.visible { opacity: 1; }
+
+    #buttons {
+      display: flex; gap: 6px; justify-content: center; align-items: center;
+    }
+    .ctrl-btn {
+      width: 38px; height: 38px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 8px;
+      color: #e8eaed;
+      font-size: 16px;
+      transition: background 140ms ease, transform 80ms ease;
+    }
+    .ctrl-btn:hover  { background: rgba(255,255,255,0.10); }
+    .ctrl-btn:active { transform: scale(0.94); }
+    .ctrl-btn:disabled,
+    .ctrl-btn[aria-disabled="true"] {
+      opacity: 0.35; cursor: not-allowed;
+    }
+    .ctrl-btn.primary { background: #4f8cff; color: #fff; width: 44px; height: 44px; }
+    .ctrl-btn.primary:hover { background: #3d78ea; }
+
+    /* ------------------------------------------------------------------ */
+    /*  Empty / error states                                               */
+    /* ------------------------------------------------------------------ */
+    #empty-state {
+      position: absolute; inset: 0;
+      display: none;
+      align-items: center; justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      color: #9aa0a6;
+      text-align: center;
+      padding: 24px;
+    }
+    #empty-state.visible { display: flex; }
+    #empty-state h1 { margin: 0; font-size: 18px; color: #e8eaed; font-weight: 600; }
+    #empty-state p  { margin: 0; font-size: 13px; max-width: 480px; line-height: 1.5; }
+    #empty-state code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div id="viewer" role="application" aria-label="DemoForge viewer">
+    <div id="screenshot-container" aria-live="polite">
+      <img id="screenshot" alt="" />
+      <svg id="hotspot-layer" aria-hidden="true">
+        <circle id="hotspot-ring" cx="-9999" cy="-9999" r="14" />
+        <circle id="hotspot"      cx="-9999" cy="-9999" r="14" fill="#ff3b30" fill-opacity="0.85" />
+      </svg>
+      <div id="cursor" aria-hidden="true">
+        <svg width="18" height="24" viewBox="0 0 18 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M0 0 L0 19 L5 14.5 L8.2 22 L11 20.7 L7.8 13.2 L14 13 Z"
+                fill="#ffffff" stroke="#1a1d22" stroke-width="1.2" stroke-linejoin="round" />
+        </svg>
+      </div>
+
+      <div id="empty-state" role="alert">
+        <h1>No demo loaded</h1>
+        <p>Embed a DemoSpec JSON in <code>&lt;script id="demo-data"&gt;</code> or load this page with <code>?demo=demo.json</code>.</p>
+      </div>
+    </div>
+
+    <div id="controls" aria-label="Player controls">
+      <div id="progress-bar" role="tablist" aria-label="Step progress"></div>
+      <div id="info-row">
+        <div id="step-info" aria-live="polite">Step 0 of 0</div>
+        <div id="annotation" aria-live="polite"></div>
+      </div>
+      <div id="buttons">
+        <button id="btn-prev"   class="ctrl-btn"     aria-label="Previous step" title="Previous (←)">&#9664;&#xFE0E;</button>
+        <button id="btn-play"   class="ctrl-btn primary" aria-label="Play"         title="Play / Pause (Space)">&#9654;&#xFE0E;</button>
+        <button id="btn-next"   class="ctrl-btn"     aria-label="Next step"     title="Next (→)">&#9654;&#xFE0E;</button>
+        <button id="btn-mute"   class="ctrl-btn"     aria-label="Mute"          title="Mute (M)">&#128266;&#xFE0E;</button>
+      </div>
+    </div>
+  </div>
+
+  <!--
+    Sample DemoSpec for development / smoke testing. Replace this block (or
+    strip it) when embedding a real recorded demo. In production the Phase 4
+    export tool would inject a recorded spec here and serialise the file
+    as a standalone HTML deliverable.
+  -->
+  <script id="demo-data" type="application/json">
+{
+  "version": 1,
+  "id": "sample-onboarding",
+  "name": "Onboarding sample",
+  "goal": "Show the viewer can step through 8 frames with hotspots + cursor",
+  "createdAt": "2026-07-01T00:00:00Z",
+  "viewport": { "width": 1024, "height": 768 },
+  "startUrl": "https://example.com",
+  "aiAnnotations": null,
+  "steps": [
+    {
+      "index": 0, "timestamp": 0,
+      "pageUrl": "https://example.com/", "pageTitle": "Welcome",
+      "interaction": {
+        "type": "click",
+        "target": { "selector": "#get-started", "tagName": "button", "text": "Get started",
+                    "boundingRect": { "x": 380, "y": 320, "width": 264, "height": 64 } },
+        "hotspot": { "xPct": 50, "yPct": 50 }
+      },
+      "annotation": "Click \u201cGet started\u201d to begin onboarding"
+    },
+    {
+      "index": 1, "timestamp": 1500,
+      "pageUrl": "https://example.com/profile", "pageTitle": "Set up profile",
+      "interaction": {
+        "type": "input",
+        "target": { "selector": "input[name=email]", "tagName": "input", "text": "",
+                    "boundingRect": { "x": 312, "y": 240, "width": 400, "height": 44 } },
+        "hotspot": { "xPct": 35, "yPct": 50 }
+      },
+      "annotation": "Enter your work email"
+    },
+    {
+      "index": 2, "timestamp": 3200,
+      "pageUrl": "https://example.com/profile", "pageTitle": "Set up profile",
+      "interaction": {
+        "type": "click",
+        "target": { "selector": ".team-picker > li:nth-of-type(2)", "tagName": "li", "text": "Marketing",
+                    "boundingRect": { "x": 312, "y": 360, "width": 192, "height": 56 } },
+        "hotspot": { "xPct": 50, "yPct": 50 }
+      },
+      "annotation": "Pick the team you belong to"
+    },
+    {
+      "index": 3, "timestamp": 5100,
+      "pageUrl": "https://example.com/integrations", "pageTitle": "Connect integrations",
+      "interaction": {
+        "type": "click",
+        "target": { "selector": "button.cta-primary", "tagName": "button", "text": "Connect Slack",
+                    "boundingRect": { "x": 540, "y": 480, "width": 220, "height": 52 } },
+        "hotspot": { "xPct": 50, "yPct": 50 }
+      },
+      "annotation": "Connect Slack to see channel activity"
+    },
+    {
+      "index": 4, "timestamp": 7400,
+      "pageUrl": "https://example.com/integrations", "pageTitle": "Authorize Slack",
+      "interaction": {
+        "type": "click",
+        "target": { "selector": "#slack-allow", "tagName": "button", "text": "Allow",
+                    "boundingRect": { "x": 612, "y": 580, "width": 160, "height": 44 } },
+        "hotspot": { "xPct": 50, "yPct": 50 }
+      },
+      "annotation": "Allow the workspace to read channels"
+    },
+    {
+      "index": 5, "timestamp": 9400,
+      "pageUrl": "https://example.com/dashboard", "pageTitle": "Your dashboard",
+      "interaction": {
+        "type": "navigate",
+        "target": { "selector": "body", "tagName": "body",
+                    "boundingRect": { "x": 0, "y": 0, "width": 1024, "height": 768 } },
+        "hotspot": { "xPct": 50, "yPct": 50 }
+      },
+      "annotation": "You\u2019re in \u2014 dashboard loads with your channels"
+    },
+    {
+      "index": 6, "timestamp": 11200,
+      "pageUrl": "https://example.com/dashboard", "pageTitle": "Your dashboard",
+      "interaction": {
+        "type": "click",
+        "target": { "selector": "aside.sidebar nav a:nth-of-type(3)", "tagName": "a", "text": "Reports",
+                    "boundingRect": { "x": 28, "y": 240, "width": 168, "height": 40 } },
+        "hotspot": { "xPct": 80, "yPct": 50 }
+      },
+      "annotation": "Open the Reports section"
+    },
+    {
+      "index": 7, "timestamp": 13200,
+      "pageUrl": "https://example.com/dashboard/reports", "pageTitle": "Reports",
+      "interaction": {
+        "type": "click",
+        "target": { "selector": "#export-pdf", "tagName": "button", "text": "Export PDF",
+                    "boundingRect": { "x": 820, "y": 120, "width": 156, "height": 40 } },
+        "hotspot": { "xPct": 50, "yPct": 50 }
+      },
+      "annotation": "Export a PDF of this week\u2019s activity"
+    }
+  ]
+}
+  </script>
+
+  <script>
+  (() => {
+    'use strict';
+
+    // ----------------------------------------------------------------
+    //  State
+    // ----------------------------------------------------------------
+    const STATE = {
+      spec: null,
+      index: 0,             // 0-based current step
+      direction: 1,         // 1 = forward, -1 = backward — controls cursor start
+      phase: 'idle',        // 'idle' | 'transitioning' | 'active'
+      isPlaying: false,
+      isMuted: false,
+      autoHideTimer: null,
+      cursorStart: null,    // { x, y } — last cursor position for arc start
+      audio: null,          // HTMLAudioElement if voiceover is loaded
+      autoPlayTimeout: null,
+    };
+
+    const TRANSITION_MS = 300;   // matches the CSS opacity transition
+    const CURSOR_MS     = 400;   // cubic-bezier travel duration
+    const AUTOPLAY_MS   = 3000;  // delay between auto-advance ticks
+    const AUTOHIDE_MS   = 2000;  // controls fade delay
+
+    // ----------------------------------------------------------------
+    //  DOM
+    // ----------------------------------------------------------------
+    const $viewer         = document.getElementById('viewer');
+    const $screenshot     = document.getElementById('screenshot');
+    const $hotspot        = document.getElementById('hotspot');
+    const $hotspotRing    = document.getElementById('hotspot-ring');
+    const $hotspotLayer   = document.getElementById('hotspot-layer');
+    const $cursor         = document.getElementById('cursor');
+    const $progress       = document.getElementById('progress-bar');
+    const $stepInfo       = document.getElementById('step-info');
+    const $annotation     = document.getElementById('annotation');
+    const $controls       = document.getElementById('controls');
+    const $btnPrev        = document.getElementById('btn-prev');
+    const $btnNext        = document.getElementById('btn-next');
+    const $btnPlay        = document.getElementById('btn-play');
+    const $btnMute        = document.getElementById('btn-mute');
+    const $empty          = document.getElementById('empty-state');
+
+    // ----------------------------------------------------------------
+    //  Loading the DemoSpec
+    // ----------------------------------------------------------------
+    async function loadDemoSpec() {
+      const embedded = document.getElementById('demo-data');
+      if (embedded && embedded.textContent && embedded.textContent.trim()) {
+        try {
+          return JSON.parse(embedded.textContent);
+        } catch (err) {
+          throw new Error('Failed to parse embedded #demo-data: ' + err.message);
+        }
+      }
+      const params = new URLSearchParams(location.search);
+      const url = params.get('demo');
+      if (url) {
+        // Only allow relative paths — never absolute URLs (prevents SSRF).
+        if (/^(https?:|\/\/)/i.test(url)) {
+          throw new Error('?demo= only accepts relative paths, not absolute URLs.');
+        }
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`Fetch ${url} → HTTP ${resp.status}`);
+        return await resp.json();
+      }
+      throw new Error('No demo data found. Add ?demo=path/to/demo.json or embed in #demo-data.');
+    }
+
+    // ----------------------------------------------------------------
+    //  Screenshot resolution
+    // ----------------------------------------------------------------
+    function resolveScreenshot(step) {
+      if (!step) return null;
+      if (step.screenshotBase64) {
+        return 'data:image/png;base64,' + step.screenshotBase64;
+      }
+      if (step.screenshotPath) {
+        // When opened via file://, only allow same-directory paths to
+        // prevent local file traversal (e.g. ../../private/file.png).
+        if (document.baseURI.startsWith('file://')) {
+          const name = step.screenshotPath.replace(/^.*[\\\/]/, '');
+          if (name !== step.screenshotPath) {
+            // Path contains directory traversal — reject and fall back.
+            return placeholderImage(step);
+          }
+        }
+        try {
+          return new URL(step.screenshotPath, document.baseURI).toString();
+        } catch (_) {
+          return step.screenshotPath;
+        }
+      }
+      return placeholderImage(step);
+    }
+
+    function placeholderImage(step) {
+      const w = (step.viewport && step.viewport.width)  || 1024;
+      const h = (step.viewport && step.viewport.height) || 768;
+      const idx = step.index != null ? step.index : '?';
+      const sel = step.interaction && step.interaction.target && step.interaction.target.selector
+                    ? step.interaction.target.selector : '';
+      const label = sel ? sel.replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c])) : '';
+      // Pure ASCII only — btoa() rejects code points > 255, and some image
+      // decoders refuse to load data: URLs that contain UTF-8 bytes.
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">` +
+          `<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">` +
+            `<stop offset="0" stop-color="#1f2937"/>` +
+            `<stop offset="1" stop-color="#111827"/>` +
+          `</linearGradient></defs>` +
+          `<rect width="100%" height="100%" fill="url(#g)"/>` +
+          `<g font-family="-apple-system, system-ui, sans-serif" fill="#9ca3af">` +
+            `<text x="50%" y="46%" text-anchor="middle" font-size="56" font-weight="700" fill="#e8eaed">Step ${idx}</text>` +
+            (label ? `<text x="50%" y="58%" text-anchor="middle" font-size="28">${label}</text>` : '') +
+            `<text x="50%" y="94%" text-anchor="middle" font-size="16" opacity="0.5">placeholder screenshot  ${w}x${h}</text>` +
+          `</g>` +
+        `</svg>`;
+      // btoa throws on code points > 255; encode safely via TextEncoder first.
+      const bytes = new TextEncoder().encode(svg);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return 'data:image/svg+xml;base64,' + btoa(bin);
+    }
+
+    // ----------------------------------------------------------------
+    //  Hotspot positioning
+    // ----------------------------------------------------------------
+    function positionHotspot(step) {
+      const t = (step && step.interaction && step.interaction.target) || {};
+      const r = t.boundingRect || null;
+      const xPct = (step && step.interaction && step.interaction.hotspot && step.interaction.hotspot.xPct) || 0;
+      const yPct = (step && step.interaction && step.interaction.hotspot && step.interaction.hotspot.yPct) || 0;
+
+      let cx, cy;
+      if (r && Number.isFinite(r.width) && Number.isFinite(r.height)) {
+        cx = r.x + (r.width  * xPct / 100);
+        cy = r.y + (r.height * yPct / 100);
+      } else {
+        // Missing boundingRect → fall back to viewport centre.
+        const vw = (step && step.viewport && step.viewport.width)  || 1024;
+        const vh = (step && step.viewport && step.viewport.height) || 768;
+        cx = vw / 2; cy = vh / 2;
+      }
+      // Set ring first so its centre is used as the transform origin.
+      $hotspot.setAttribute('cx', cx);
+      $hotspot.setAttribute('cy', cy);
+      $hotspotRing.setAttribute('cx', cx);
+      $hotspotRing.setAttribute('cy', cy);
+      return { x: cx, y: cy };
+    }
+
+    // ----------------------------------------------------------------
+    //  Cursor animation — proper cubic bezier with two control points
+    //  so the arc actually curves instead of following the brief's
+    //  degenerate P1==P2 quadratic in cubic notation.
+    // ----------------------------------------------------------------
+    function animateCursor(fromX, fromY, toX, toY, duration = CURSOR_MS) {
+      const start = performance.now();
+      // Two distinct control points — both offset perpendicular to the
+      // start→end line by the same magnitude, giving a smooth arc.
+      const dx = toX - fromX, dy = toY - fromY;
+      const len = Math.max(1, Math.hypot(dx, dy));
+      const off = Math.min(80, len * 0.35);
+      // Perpendicular vector (rotate 90° CCW): (-dy, dx) / len
+      const px = -dy / len, py = dx / len;
+      const cp1x = fromX + dx * 0.25 + px * off;
+      const cp1y = fromY + dy * 0.25 + py * off;
+      const cp2x = fromX + dx * 0.75 + px * off;
+      const cp2y = fromY + dy * 0.75 + py * off;
+
+      $cursor.classList.add('visible');
+
+      function tick(now) {
+        const t = Math.min((now - start) / duration, 1);
+        // Ease-in-out cubic.
+        const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        const u = 1 - e;
+        const x = u * u * u * fromX + 3 * u * u * e * cp1x + 3 * u * e * e * cp2x + e * e * e * toX;
+        const y = u * u * u * fromY + 3 * u * u * e * cp1y + 3 * u * e * e * cp2y + e * e * e * toY;
+        $cursor.style.left = x + 'px';
+        $cursor.style.top  = y + 'px';
+        if (t < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          STATE.cursorStart = { x: toX, y: toY };
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+
+    function hideCursor() {
+      $cursor.classList.remove('visible');
+    }
+
+    // ----------------------------------------------------------------
+    //  Voiceover
+    // ----------------------------------------------------------------
+    function playVoiceover(step) {
+      stopVoiceover();
+      const audio = step && step.voiceoverBase64;
+      if (!audio || STATE.isMuted) return;
+      try {
+        const el = new Audio('data:audio/mpeg;base64,' + audio);
+        el.volume = 1.0;
+        el.addEventListener('ended', () => {
+          if (STATE.isPlaying) scheduleAutoAdvance();
+        });
+        STATE.audio = el;
+        el.play().catch(() => { /* autoplay policy — ignore */ });
+      } catch (_) {
+        // No audio support — silent.
+      }
+    }
+
+    function stopVoiceover() {
+      if (STATE.audio) {
+        try { STATE.audio.pause(); STATE.audio.currentTime = 0; } catch (_) {}
+        STATE.audio = null;
+      }
+    }
+
+    // ----------------------------------------------------------------
+    //  Step state machine
+    // ----------------------------------------------------------------
+    function clampIndex(i) {
+      const n = STATE.spec.steps.length;
+      if (n === 0) return 0;
+      if (i < 0) return 0;
+      if (i >= n) return n - 1;
+      return i;
+    }
+
+    function goToStep(targetIndex, direction = 1) {
+      if (STATE.phase === 'transitioning') return;
+      const n = STATE.spec.steps.length;
+      if (n === 0) return;
+      const next = clampIndex(targetIndex);
+      if (next === STATE.index && STATE.phase !== 'idle') return;
+
+      STATE.phase = 'transitioning';
+      STATE.direction = direction;
+
+      const prevStep = STATE.spec.steps[STATE.index] || null;
+      const newStep  = STATE.spec.steps[next] || null;
+      if (!newStep) { STATE.phase = 'active'; return; }
+
+      // Resolve the FROM and TO pixel positions in viewport coordinates.
+      const fromXY = STATE.cursorStart || positionHotspot(prevStep) || { x: 0, y: 0 };
+      const toXY   = positionHotspot(newStep);
+
+      // Crossfade screenshots.
+      $screenshot.classList.remove('visible');
+      setTimeout(() => {
+        $screenshot.src = resolveScreenshot(newStep);
+        // Wait for the image to decode so the fade-in looks smooth.
+        const onLoad = () => {
+          $screenshot.removeEventListener('load', onLoad);
+          $screenshot.classList.add('visible');
+        };
+        if ($screenshot.complete && $screenshot.naturalWidth) {
+          onLoad();
+        } else {
+          $screenshot.addEventListener('load', onLoad);
+          // Fallback: still fade after a max delay.
+          setTimeout(onLoad, 600);
+        }
+
+        // Cursor flies to the new hotspot.
+        animateCursor(fromXY.x, fromXY.y, toXY.x, toXY.y, CURSOR_MS);
+        stopVoiceover();
+        playVoiceover(newStep);
+
+        setTimeout(() => {
+          STATE.index = next;
+          updateInfo(newStep);
+          STATE.phase = 'active';
+        }, TRANSITION_MS);
+      }, TRANSITION_MS);
+    }
+
+    function next() { goToStep(STATE.index + 1,  1); }
+    function prev() { goToStep(STATE.index - 1, -1); }
+
+    // ----------------------------------------------------------------
+    //  Auto-play
+    // ----------------------------------------------------------------
+    function scheduleAutoAdvance(delay = AUTOPLAY_MS) {
+      clearTimeout(STATE.autoPlayTimeout);
+      STATE.autoPlayTimeout = setTimeout(() => {
+        if (!STATE.isPlaying) return;
+        const last = STATE.spec.steps.length - 1;
+        if (STATE.index >= last) {
+          pause();
+          return;
+        }
+        next();
+      }, delay);
+    }
+
+    function play() {
+      if (!STATE.spec || STATE.spec.steps.length === 0) return;
+      const last = STATE.spec.steps.length - 1;
+      if (STATE.index >= last) {
+        // Restart from beginning.
+        goToStep(0, 1);
+      }
+      STATE.isPlaying = true;
+      $btnPlay.innerHTML = '&#10074;&#10074;&#xFE0E;';  // pause icon
+      $btnPlay.setAttribute('aria-label', 'Pause');
+      // If we already paused mid-step, schedule the next advance.
+      if (STATE.phase === 'active') scheduleAutoAdvance();
+    }
+
+    function pause() {
+      STATE.isPlaying = false;
+      clearTimeout(STATE.autoPlayTimeout);
+      stopVoiceover();
+      $btnPlay.innerHTML = '&#9654;&#xFE0E;';  // play icon
+      $btnPlay.setAttribute('aria-label', 'Play');
+    }
+
+    function togglePlay() { STATE.isPlaying ? pause() : play(); }
+
+    // ----------------------------------------------------------------
+    //  Mute
+    // ----------------------------------------------------------------
+    function toggleMute() {
+      STATE.isMuted = !STATE.isMuted;
+      $btnMute.innerHTML = STATE.isMuted ? '&#128263;&#xFE0E;' : '&#128266;&#xFE0E;';
+      $btnMute.setAttribute('aria-label', STATE.isMuted ? 'Unmute' : 'Mute');
+      $btnMute.setAttribute('title',      STATE.isMuted ? 'Unmute (M)' : 'Mute (M)');
+      if (STATE.isMuted) stopVoiceover();
+    }
+
+    // ----------------------------------------------------------------
+    //  UI updates
+    // ----------------------------------------------------------------
+    function updateInfo(step) {
+      const total = STATE.spec.steps.length;
+      $stepInfo.textContent = `Step ${STATE.index + 1} of ${total}`;
+
+      if (step && step.annotation) {
+        $annotation.textContent = step.annotation;
+        $annotation.classList.add('visible');
+        $annotation.title = step.annotation;
+      } else {
+        $annotation.textContent = '';
+        $annotation.classList.remove('visible');
+        $annotation.title = '';
+      }
+
+      // Prev disabled at start, Next disabled at end (unless we're looping — keep simple).
+      const atStart = STATE.index <= 0;
+      const atEnd   = STATE.index >= total - 1;
+      $btnPrev.toggleAttribute('disabled', atStart);
+      $btnNext.toggleAttribute('disabled', atEnd);
+
+      // Refresh progress segments.
+      const segs = $progress.querySelectorAll('.progress-segment');
+      segs.forEach((seg, i) => {
+        seg.classList.toggle('done',    i <  STATE.index);
+        seg.classList.toggle('current', i === STATE.index);
+        seg.setAttribute('aria-selected', i === STATE.index ? 'true' : 'false');
+      });
+    }
+
+    function buildProgressBar() {
+      $progress.innerHTML = '';
+      STATE.spec.steps.forEach((_, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'progress-segment';
+        b.setAttribute('role', 'tab');
+        b.setAttribute('aria-label', `Jump to step ${i + 1}`);
+        b.dataset.index = String(i);
+        b.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const dir = i > STATE.index ? 1 : -1;
+          goToStep(i, dir);
+          showControls();
+        });
+        $progress.appendChild(b);
+      });
+    }
+
+    // ----------------------------------------------------------------
+    //  Auto-hide controls
+    // ----------------------------------------------------------------
+    function showControls() {
+      $controls.classList.remove('hidden');
+      clearTimeout(STATE.autoHideTimer);
+      STATE.autoHideTimer = setTimeout(hideControls, AUTOHIDE_MS);
+    }
+    function hideControls() {
+      $controls.classList.add('hidden');
+    }
+
+    // ----------------------------------------------------------------
+    //  Wiring
+    // ----------------------------------------------------------------
+    function attachListeners() {
+      $btnPrev.addEventListener('click', () => { prev(); showControls(); });
+      $btnNext.addEventListener('click', () => { next(); showControls(); });
+      $btnPlay.addEventListener('click', () => { togglePlay(); showControls(); });
+      $btnMute.addEventListener('click', () => { toggleMute(); showControls(); });
+
+      // Click hotspot → advance.
+      $hotspot.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (STATE.index >= STATE.spec.steps.length - 1) {
+          if (STATE.isPlaying) pause();
+          return;
+        }
+        next();
+        showControls();
+      });
+      // NOTE: $hotspotRing click listener intentionally removed — it overlaps
+      // $hotspot and would fire a duplicate next() on the same click.
+
+      // Keyboard nav.
+      document.addEventListener('keydown', (ev) => {
+        // Don't hijack typing in form fields (none in viewer but be safe).
+        const t = ev.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+
+        showControls();
+        switch (ev.key) {
+          case 'ArrowLeft':  prev();      ev.preventDefault(); break;
+          case 'ArrowRight': next();      ev.preventDefault(); break;
+          case ' ':          togglePlay();ev.preventDefault(); break;
+          case 'm': case 'M': toggleMute();                break;
+          case 'p': case 'P': togglePlay();                break;
+          case 'Home':       goToStep(0, -1); ev.preventDefault(); break;
+          case 'End':        goToStep(STATE.spec.steps.length - 1, 1); ev.preventDefault(); break;
+        }
+      });
+
+      // Auto-hide on inactivity.
+      $viewer.addEventListener('mousemove', showControls);
+      $viewer.addEventListener('mouseleave', () => {
+        clearTimeout(STATE.autoHideTimer);
+        STATE.autoHideTimer = setTimeout(hideControls, 400);
+      });
+
+      // Resize keeps things responsive — SVG hotspot layer is %-sized so
+      // cx/cy (recorded in viewport pixels) stay aligned with the screenshot.
+      window.addEventListener('resize', () => {
+        if (STATE.spec) positionHotspot(STATE.spec.steps[STATE.index]);
+      });
+
+      // Pause auto-play while the tab is hidden.
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden && STATE.isPlaying) pause();
+      });
+    }
+
+    // ----------------------------------------------------------------
+    //  Boot
+    // ----------------------------------------------------------------
+    async function boot() {
+      try {
+        const spec = await loadDemoSpec();
+        if (!spec || !Array.isArray(spec.steps)) {
+          throw new Error('DemoSpec is missing a `steps` array.');
+        }
+        STATE.spec = spec;
+
+        if (spec.steps.length === 0) {
+          $empty.classList.add('visible');
+          $empty.querySelector('h1').textContent = 'Empty demo';
+          $empty.querySelector('p').textContent  = 'This DemoSpec has zero steps. Record at least one click first.';
+          $btnPrev.setAttribute('aria-disabled', 'true');
+          $btnNext.setAttribute('aria-disabled', 'true');
+          $btnPlay.setAttribute('aria-disabled', 'true');
+          return;
+        }
+
+        buildProgressBar();
+        attachListeners();
+
+        // Initial render.
+        const first = spec.steps[0];
+        const xy = positionHotspot(first);
+        STATE.cursorStart = xy;
+        $screenshot.addEventListener('load', () => $screenshot.classList.add('visible'), { once: true });
+        $screenshot.src = resolveScreenshot(first);
+        // Reveal even if cached.
+        setTimeout(() => $screenshot.classList.add('visible'), 60);
+        updateInfo(first);
+
+        // Hide controls after AUTOHIDE_MS on first paint.
+        showControls();
+
+        // Expose for browser console / e2e tests.
+        window.__demoViewer = { STATE, next, prev, play, pause, togglePlay, toggleMute, goToStep };
+      } catch (err) {
+        console.error('[demo-viewer]', err);
+        $empty.classList.add('visible');
+        $empty.querySelector('h1').textContent = 'Could not load demo';
+        $empty.querySelector('p').innerHTML    = `<code>${(err && err.message || String(err)).replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]))}</code>`;
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', boot);
+    } else {
+      boot();
+    }
+  })();
+  </script>
+</body>
+</html>
