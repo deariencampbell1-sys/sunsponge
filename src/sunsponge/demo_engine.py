@@ -10,7 +10,6 @@ Windows) but does not modify ``capture_service.py``.
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
 import logging
 import os
@@ -58,8 +57,9 @@ class DemoStep:
     pageUrl: str
     pageTitle: str
     interaction: Interaction
-    screenshotBase64: str | None = None
-    screenshotPath: str | None = None  # local path to step_*.png (added field)
+    screenshotBase64: str | None = None  # deprecated — use screenshotPath
+    screenshotPath: str | None = None  # local path to step_*.png
+    screenshotError: str | None = None  # set when capture fails
 
 
 @dataclass
@@ -466,10 +466,11 @@ class DemoRecorder:
                     hotspot=payload.get("hotspot", {"xPct": 0, "yPct": 0}),
                     value=payload.get("value"),
                 ),
-                screenshotBase64=base64.b64encode(png_bytes).decode("ascii") if png_bytes else None,
+                screenshotBase64=None,  # stored on disk via screenshotPath only (avoids JSON bloat)
                 screenshotPath=str(shot_path.relative_to(self.output_dir.parent))
                 if png_bytes
                 else None,
+                screenshotError=None if png_bytes else "screenshot capture failed",
             )
             self.spec.steps.append(step)
             self._last_url = step.pageUrl
@@ -537,7 +538,7 @@ class DemoManager:
         goal = (payload.get("goal") or "").strip()
         if not url:
             raise DemoRecorderError("url is required")
-        if not (url.startswith("http://") or url.startswith("https://") or url.startswith("file://")):
+        if not (url.startswith("http://") or url.startswith("https://")):
             raise DemoRecorderError(f"unsupported url scheme: {url}")
 
         viewport = payload.get("viewport") or {"width": 1440, "height": 900}
