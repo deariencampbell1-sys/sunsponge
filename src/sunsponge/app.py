@@ -13,11 +13,27 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from sunsponge.capture_service import RestedCaptureError, RestedCaptureManager
+from sunsponge.demo_engine import DemoManager, DemoRecorderError, run_async
 
 logger = logging.getLogger(__name__)
 
 UI_DIR = Path(__file__).resolve().parents[2] / "ui"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEMOS_ROOT = PROJECT_ROOT / "demos"
 _CAPTURE_MANAGER = RestedCaptureManager()
+_DEMO_MANAGER = DemoManager(output_root=DEMOS_ROOT)
+
+
+class DemoRecordRequest(BaseModel):
+    url: str
+    name: str | None = "Untitled demo"
+    goal: str | None = ""
+    viewport: dict[str, int] | None = None
+    sessionId: str | None = None
+
+
+class DemoStopRequest(BaseModel):
+    sessionId: str
 
 
 class RestedCaptureRequest(BaseModel):
@@ -97,6 +113,87 @@ def create_app() -> FastAPI:
         except FileNotFoundError:
             return JSONResponse(status_code=409, content={"ok": False, "error": "capture ZIP is not ready"})
         return FileResponse(str(zip_path), media_type="application/zip", filename=zip_path.name)
+
+    # ---- DemoForge recorder (Phase 1) ------------------------------------
+
+    @app.post("/api/demos/record", response_model=None)
+    def post_demos_record(body: DemoRecordRequest) -> dict[str, Any] | JSONResponse:
+        """Launch a headful Playwright window that records user clicks."""
+        try:
+            recorder, session_id = _DEMO_MANAGER.start(_request_payload(body))
+        except DemoRecorderError as exc:
+            return JSONResponse(status_code=400, content={"ok": False, "error": str(exc)})
+        except Exception:
+            logger.exception("POST /api/demos/record failed to start")
+            return JSONResponse(
+                status_code=500, content={"ok": False, "error": "failed to start recorder"}
+            )
+
+        # Start the async recorder in a background thread. We deliberately
+        # don't await it — the browser must stay open until /stop is called.
+        try:
+            import threading as _threading
+
+            _t = _threading.Thread(
+                target=lambda: run_async(recorder.start()),
+                name=f"demo-start-{session_id}",
+                daemon=True,
+            )
+            _t.start()
+        except Exception:
+            logger.exception("failed to spawn recorder thread for %s", session_id)
+            _DEMO_MANAGER.discard(session_id)
+            return JSONResponse(
+                status_code=500, content={"ok": False, "error": "failed to launch browser"}
+            )
+
+        return {
+            "ok": True,
+            "sessionId": session_id,
+            "message": (
+                "Recording started. Interact with the browser window, then call "
+                "POST /api/demos/stop with this sessionId."
+            ),
+        }
+
+    @app.post("/api/demos/stop", response_model=None)
+    def post_demos_stop(body: DemoStopRequest) -> dict[str, Any] | JSONResponse:
+        try:
+            recorder = _DEMO_MANAGER.get(body.sessionId)
+        except DemoRecorderError as exc:
+            return JSONResponse(status_code=404, content={"ok": False, "error": str(exc)})
+
+        try:
+            spec = recorder.stop()
+        except DemoRecorderError as exc:
+            return JSONResponse(status_code=400, content={"ok": False, "error": str(exc)})
+        except Exception:
+            logger.exception("failed to stop recorder %s", body.sessionId)
+            _DEMO_MANAGER.discard(body.sessionId)
+            return JSONResponse(
+                status_code=500, content={"ok": False, "error": "failed to stop recorder"}
+            )
+
+        step_count = len(spec.steps)
+        out_dir = recorder.output_dir
+        rel_demo = str(out_dir / "demo.json")
+        try:
+            rel_demo = str(out_dir.relative_to(PROJECT_ROOT) / "demo.json")
+        except ValueError:
+            pass
+
+        _DEMO_MANAGER.discard(body.sessionId)
+        return {
+            "ok": True,
+            "demoId": body.sessionId,
+            "stepCount": step_count,
+            "path": rel_demo,
+            "status": "recorded",
+        }
+
+    @app.get("/api/demos/sessions")
+    def get_demos_sessions() -> dict[str, Any]:
+        return {"ok": True, "sessions": _DEMO_MANAGER.list_sessions()}
 
     if UI_DIR.is_dir():
         app.mount("/", StaticFiles(directory=str(UI_DIR), html=True), name="ui")
