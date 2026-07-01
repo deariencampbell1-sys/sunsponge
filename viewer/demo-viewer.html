@@ -393,6 +393,10 @@
       const params = new URLSearchParams(location.search);
       const url = params.get('demo');
       if (url) {
+        // Only allow relative paths — never absolute URLs (prevents SSRF).
+        if (/^(https?:|\/\/)/i.test(url)) {
+          throw new Error('?demo= only accepts relative paths, not absolute URLs.');
+        }
         const resp = await fetch(url);
         if (!resp.ok) throw new Error(`Fetch ${url} → HTTP ${resp.status}`);
         return await resp.json();
@@ -409,6 +413,15 @@
         return 'data:image/png;base64,' + step.screenshotBase64;
       }
       if (step.screenshotPath) {
+        // When opened via file://, only allow same-directory paths to
+        // prevent local file traversal (e.g. ../../private/file.png).
+        if (document.baseURI.startsWith('file://')) {
+          const name = step.screenshotPath.replace(/^.*[\\\/]/, '');
+          if (name !== step.screenshotPath) {
+            // Path contains directory traversal — reject and fall back.
+            return placeholderImage(step);
+          }
+        }
         try {
           return new URL(step.screenshotPath, document.baseURI).toString();
         } catch (_) {
@@ -733,18 +746,14 @@
       $hotspot.addEventListener('click', (ev) => {
         ev.stopPropagation();
         if (STATE.index >= STATE.spec.steps.length - 1) {
-          // At end — pause auto-play.
           if (STATE.isPlaying) pause();
           return;
         }
         next();
         showControls();
       });
-      $hotspotRing.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        next();
-        showControls();
-      });
+      // NOTE: $hotspotRing click listener intentionally removed — it overlaps
+      // $hotspot and would fire a duplicate next() on the same click.
 
       // Keyboard nav.
       document.addEventListener('keydown', (ev) => {
