@@ -5,6 +5,7 @@ __pycache__/
 venv/
 .env
 out/
+demos/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from sunsponge.capture_service import RestedCaptureError, RestedCaptureManager
 from sunsponge.demo_engine import DemoManager, DemoRecorderError, run_async
+from sunsponge.demo_ai import DemoAI, DemoAIError, DemoEnrichManager
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEMOS_ROOT = PROJECT_ROOT / "demos"
 _CAPTURE_MANAGER = RestedCaptureManager()
 _DEMO_MANAGER = DemoManager(output_root=DEMOS_ROOT)
+_DEMO_AI = DemoAI()
+_DEMO_ENRICH = DemoEnrichManager(output_root=DEMOS_ROOT, ai=_DEMO_AI)
 
 
 class DemoRecordRequest(BaseModel):
@@ -34,6 +37,10 @@ class DemoRecordRequest(BaseModel):
 
 class DemoStopRequest(BaseModel):
     sessionId: str
+
+
+class DemoEnrichRequest(BaseModel):
+    demoId: str
 
 
 class RestedCaptureRequest(BaseModel):
@@ -194,6 +201,50 @@ def create_app() -> FastAPI:
     @app.get("/api/demos/sessions")
     def get_demos_sessions() -> dict[str, Any]:
         return {"ok": True, "sessions": _DEMO_MANAGER.list_sessions()}
+
+    # ---- DemoForge AI enrichment (Phase 3) -------------------------------
+
+    @app.post("/api/demos/enrich", response_model=None)
+    def post_demos_enrich(body: DemoEnrichRequest) -> dict[str, Any] | JSONResponse:
+        """Kick off async AI enrichment for a recorded demo."""
+        try:
+            job_id = _DEMO_ENRICH.submit(body.demoId)
+        except DemoAIError as exc:
+            return JSONResponse(status_code=400, content={"ok": False, "error": str(exc)})
+        except FileNotFoundError as exc:
+            return JSONResponse(status_code=404, content={"ok": False, "error": str(exc)})
+        except Exception:
+            logger.exception("POST /api/demos/enrich failed to start")
+            return JSONResponse(
+                status_code=500, content={"ok": False, "error": "failed to start enrich job"}
+            )
+        return {
+            "ok": True,
+            "demoId": body.demoId,
+            "jobId": job_id,
+            "status": "enriching",
+            "message": "AI enrichment started. Poll /api/demos/enrich/{jobId} for status.",
+        }
+
+    @app.get("/api/demos/enrich/{job_id}", response_model=None)
+    def get_demos_enrich_job(job_id: str) -> dict[str, Any] | JSONResponse:
+        try:
+            return {"ok": True, "job": _DEMO_ENRICH.get_status(job_id)}
+        except KeyError:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "job not found"})
+
+    @app.get("/api/demos/enrich", response_model=None)
+    def get_demos_enrich_jobs() -> dict[str, Any]:
+        return {"ok": True, "jobs": _DEMO_ENRICH.list_jobs()}
+
+    @app.get("/api/demos/{demo_id}", response_model=None)
+    def get_demos_spec(demo_id: str) -> dict[str, Any] | JSONResponse:
+        try:
+            return {"ok": True, "demoId": demo_id, "spec": _DEMO_ENRICH.read_spec(demo_id)}
+        except FileNotFoundError:
+            return JSONResponse(
+                status_code=404, content={"ok": False, "error": f"demo '{demo_id}' not found"}
+            )
 
     if UI_DIR.is_dir():
         app.mount("/", StaticFiles(directory=str(UI_DIR), html=True), name="ui")
