@@ -1,0 +1,61 @@
+[Unit]
+Description=SunSponge hub-link relay (zero-knowledge)
+Documentation=file:///opt/sunsponge-relay/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=relayd
+Group=relayd
+WorkingDirectory=/opt/sunsponge-relay
+EnvironmentFile=/etc/sunsponge-relay/relay.env
+ExecStart=/usr/bin/python3 -m relay.relayd
+Restart=always
+RestartSec=2
+TimeoutStopSec=10
+
+# --- Hardening ---
+# Do not allow privilege escalation.
+NoNewPrivileges=true
+# Make the entire /usr and /boot read-only.
+ProtectSystem=strict
+# /opt/sunsponge-relay is read-only for the daemon (we log to stdout).
+ProtectHome=true
+PrivateTmp=true
+# SUID/SGID bits are useless and dangerous.
+RestrictSUIDSGID=true
+# Disallow creating new namespaces (user, mount, network, ...).
+RestrictNamespaces=true
+# Disallow personality(2) calls.
+LockPersonality=true
+# Disallow loading kernel modules via usermode helpers.
+ProtectKernelModules=true
+# Disallow writing to kernel tunables.
+ProtectKernelTunables=true
+# Make /proc and /sys read-only.
+ProcSubset=pid
+ProtectControlGroups=true
+# Disallow executable memory (W^X).  Ed25519 + Python's hashlib have
+# no need for runtime code generation.
+MemoryDenyWriteExecute=true
+# Only INET, INET6, NETLINK (for journald) sockets — no Unix sockets,
+# no abstract namespaces (the relay doesn't need them).
+RestrictAddressFamilies=AF_INET AF_INET6 AF_NETLINK
+# Disallow ptrace.
+SystemCallArchitectures=native
+# Drop every capability the daemon doesn't need.
+CapabilityBoundingSet=
+AmbientCapabilities=
+# Resource caps.
+LimitNOFILE=16384
+# Don't leak umask of the calling shell.
+UMask=0077
+
+# Logs to stdout → journald.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sunsponge-relay
+
+[Install]
+WantedBy=multi-user.target
