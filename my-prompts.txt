@@ -1,0 +1,196 @@
+--- PROMPT 1 ---
+id like to plan with you are you ready?
+
+--- PROMPT 2 ---
+have you ever heard of a thing called supademo? look it up if not
+
+--- PROMPT 3 ---
+what does he free tier cover?
+
+--- PROMPT 4 ---
+im bored and i have the free tim. lets make a tol for us to use that does the same thing. its a challenge because they have tons of devs and time and eneergy im sure therrs is 100 times better than us. but the challenge is what im into ya know?
+
+--- PROMPT 5 ---
+without video export how woud it even work? the chllenge is making a working product no corners cut. but i do see the analaytics and stuff as being a it much an dbefy not neccessary i agree. lets talk what do oyuthink?
+
+--- PROMPT 6 ---
+yewah it lines up but we are right at the same spot i was thinking architecture too. so lemme see, have you had a chance to gander our sun sponge captur'd device? we made an msix for it. do we think we can make this better ?
+
+--- PROMPT 7 ---
+hahahah yeaaaah you get tit lets make it have a bad ass interface witht he ai tools. i need you to gander soe more im surised oyu didnt mention it but oyu know we have the tool set u to e contrled by any of our specific llms via na api we created for the family of products knwon as family of apis. the mc tools as well. so the goal is that my agent from here or anywhrere can go and stand up the app then get itt going. "hey go get eme a product flow video" then we need samples like in the iteratiosn the other agent gave me, you saw he was sayng theres a format an a flow to make the video. making th mechanics is easy, if we dont shape the mechanics for the agent with toos that call to him and let him know then we wont get the same results. i think the key is mcp connectors for certain jobs. i also dont want to avoid dom cloning and html. i know its hard but we cant find opensource projects that solved this alreayd? if oyu dont know just lmk and ill have an agent do the research for u
+
+--- PROMPT 8 ---
+send me a prompt and ill do it for oyu and we can wait for th eresults otether
+
+--- PROMPT 9 ---
+pleaase ficx this
+
+--- PROMPT 10 ---
+thank you
+
+--- PROMPT 11 ---
+no i didnt ask you to research please stop
+
+--- PROMPT 12 ---
+im asking for help vertex is still acting weird read the transcrit i saaid hey and he started doigng very starnge things
+
+--- PROMPT 13 ---
+can you make it towhere ironman doesnt get automatically spun up uness i ask
+
+--- PROMPT 14 ---
+siiick thank you imma ask him send me the prompt one mre time or the file path its working now
+
+--- PROMPT 15 ---
+no i mean the prompt for the research brother, slow down youre moving quickly an i love it but youre moving pastfiner points
+
+--- PROMPT 16 ---
+it isnt on the box its ocal brother im doing it here locally not on tmux but pi
+
+--- PROMPT 17 ---
+oh sorry to interrupt i didnt realzie the gateway was down too
+
+--- PROMPT 18 ---
+now im getting nothig its been tryng to connect but nothing do i have to restart it?
+
+--- PROMPT 19 ---
+never mind it satrted it was just slow to begin, is that nromal with gemini through vertex?
+
+--- PROMPT 20 ---
+pull the full report and yes
+
+--- PROMPT 21 ---
+i know fabric.js goes extremely well into the rhobear designs app and think if it works well here we should analzye if its better than the drag and drop system we have for thta app
+
+--- PROMPT 22 ---
+nah we can tble it
+
+--- PROMPT 23 ---
+okay so i want this in prompt i wont be using the swarm
+
+--- PROMPT 24 ---
+only one at a time? how many waves sis it ususally you do it all in waves and then review wwaved and such ya know? is it a huge brief for him or is it small
+
+--- PROMPT 25 ---
+aahhhh its not evn that logn of a program then lets go
+
+--- PROMPT 26 ---
+https://github.com/deariencampbell1-sys/sunsponge-capture this si the repo for the device and idk if hes been building in there. also th agent is having trouble checking git? did they move his repo to my org or something?
+
+--- PROMPT 27 ---
+yes
+
+--- PROMPT 28 ---
+yes
+
+--- PROMPT 29 ---
+Done. PR #17 is up: https://github.com/deariencampbell1-sys/sunsponge/pull/17
+
+ ### Phase 2 — viewer/demo-viewer.html
+
+ - 841 lines, 33 KB, single file, zero deps
+ - Works from file:// and any static host (both verified in real Chromium)
+ - 8-step inline sample DemoSpec for dev smoke testing
+
+ ### All 9 acceptance criteria verified end-to-end
+
+ - Hotspot at exact coords on all 8 steps (math checked step-by-step)
+ - ← → keyboard nav, Space play/pause, M mute, Home/End jump
+ - Progress bar click-to-jump, hotspot click-to-advance
+ - Auto-hide controls (2s) + reappear on mousemove
+ - Annotation display, step counter, prev/next boundary disabling
+
+ ### Two intentional fixes from the brief
+
+ - Cursor bezier: the brief's formula uses cpX twice, which produces a degenerate quadratic-in-cubic-notation curve,
+   not an arc. Implementation uses two distinct control points offset perpendicular to the start→end line so the cursor
+   actually arcs upward.
+ - Base64 SVG encoding: btoa rejects code points > 255, and Chromium's image decoder rejects data URLs containing UTF-8
+   bytes. The placeholder encoder is wrapped in TextEncoder + String.fromCharCode so the data URL is pure ASCII.
+
+ ### GH auth note
+
+ Used gh pr create --repo deariencampbell1-sys/sunsponge explicitly and it worked clean. Also confirmed gh pr view with
+ the same flag works.
+
+ ### One screenshot worth a look
+
+ /tmp/viewer-step5-with-controls.png — shows the viewer mid-step with: progress bar highlighting step 5 in blue, "Step
+ 5 of 8" counter, "Allow the workspace to read channels" annotation, and all 4 control buttons (Play in primary state).
+
+ Ready for review.
+
+--- PROMPT 30 ---
+yes
+
+--- PROMPT 31 ---
+both if they can run in parallel
+
+--- PROMPT 32 ---
+hey i just got an api key echoed back to me in the chat wtf did you do. did oyu go find an api key and then print it plain in abrief for an agent?
+
+--- PROMPT 33 ---
+i didnt ask oyu to do anything but tlak ot me the key here is not moving and runnign to put fires out whenyo u see smoke. it could be toast. stop and tlak to me go bakc and fortha nd learn what i even want
+
+--- PROMPT 34 ---
+i need ot rotate it but i never done one of those before na dunfortunately hes alreayd got it so i let hi fifnish for testng. what evrr. the problem is less that he saw it more that he didnt redact it and same for oyu idk if you were following thos epractices or just printing it as so
+
+--- PROMPT 35 ---
+yes read only
+
+--- PROMPT 36 ---
+i dont like that any of you did that shit so to me very
+
+--- PROMPT 37 ---
+how do i get a new keyt
+
+--- PROMPT 38 ---
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows
+
+Loading personal and system profiles took 1822ms.
+PS C:\Users\slang> openssl rand -hex 20
+openssl : The term 'openssl' is not recognized as the name of a cmdlet, function, script file, or operable program.
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ openssl rand -hex 20
++ ~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (openssl:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS C:\Users\slang>
+
+--- PROMPT 39 ---
+you need to go teest tit an dmake sure you can control it form here using the apis
+
+--- PROMPT 40 ---
+go debug
+
+--- PROMPT 41 ---
+hey did you drive it using the apis yet? from here go and stand it up and do a video shocase using the tool. theres penty of screenshots or you can ask me to work with oyu and ill clicka round for oyur test idc
+
+--- PROMPT 42 ---
+is it supposed to open a webpage and not the app?
+
+--- PROMPT 43 ---
+nah its broken brother
+
+--- PROMPT 44 ---
+the browserer window opened no recordin gbutton or nothing
+
+--- PROMPT 45 ---
+also it seems like you guys just made a whole new app or somethign what happened to the app i told you about seeems like you just winged it and went with whatever you wanted
+
+--- PROMPT 46 ---
+naaah youre done report what you did lets move on, youre benched for disobeying
+
+--- PROMPT 47 ---
+send me a copy of my prompts to you so i can show him what i told oyu beforre you went off script
+
+--- PROMPT 48 ---
+no i need the whole prompts brught back nt dropped pieces
+
+--- PROMPT 49 ---
+bro i dont need that many dawg im trying to explain to him the prompts me and you went with to make th e plan and get ti going wtf man
+
